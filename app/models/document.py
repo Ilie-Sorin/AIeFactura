@@ -69,7 +69,7 @@ class Invoice(Base):
     perioada_start: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
     perioada_sfarsit: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
 
-    versiune_cius: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    versiune_cius: Mapped[str | None] = mapped_column(String(255), nullable=True)
     stare: Mapped[str] = mapped_column(String(20), default=DocumentState.PRIMIT, index=True)
     eroare_mesaj: Mapped[str | None] = mapped_column(Text, nullable=True)
     eroare_detalii: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

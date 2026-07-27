@@ -189,7 +189,7 @@ def upgrade() -> None:
     sa.Column('nr_comanda', sa.String(length=100), nullable=True),
     sa.Column('perioada_start', sa.Date(), nullable=True),
     sa.Column('perioada_sfarsit', sa.Date(), nullable=True),
-    sa.Column('versiune_cius', sa.String(length=100), nullable=True),
+    sa.Column('versiune_cius', sa.String(length=255), nullable=True),
     sa.Column('stare', sa.String(length=20), nullable=False),
     sa.Column('eroare_mesaj', sa.Text(), nullable=True),
     sa.Column('eroare_detalii', postgresql.JSONB(astext_type=sa.Text()), nullable=True),

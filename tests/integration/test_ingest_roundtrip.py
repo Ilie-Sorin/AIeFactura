@@ -1,0 +1,85 @@
+"""Test de capăt-la-capăt care verifică criteriile de terminat MVP 2 și 4
+(cap. 14): reimportul aceluiași lot nu creează documente noi, iar anularea
+unui lot readuce baza la starea dinaintea lui, verificat prin numărătoare
+de control pe tabelele afectate."""
+
+from pathlib import Path
+
+from sqlalchemy import func, select
+
+from app.models.document import Invoice, InvoiceLine
+from app.models.ingestion import ImportBatch, InvoiceSourceLink, SourceObject
+from app.services.ingest import IngestFile, cancel_batch, finish_batch, ingest_file, start_batch
+
+FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
+
+
+def _read(name: str) -> bytes:
+    return (FIXTURES / name).read_bytes()
+
+
+def _count(session, model) -> int:
+    return session.scalar(select(func.count()).select_from(model))
+
+
+def test_import_reimport_and_cancel_roundtrip(db_session_commit):
+    session = db_session_commit
+
+    # --- import initial: factura normala + storno ---
+    batch1 = start_batch(session, tip="scan_local", sursa="test")
+    r1 = ingest_file(session, batch1, IngestFile(_read("factura_normala.xml"), "factura_normala.xml"))
+    r2 = ingest_file(session, batch1, IngestFile(_read("factura_storno.xml"), "factura_storno.xml"))
+    finish_batch(session, batch1)
+    session.commit()
+
+    assert r1.stare == "importat"
+    assert r2.stare == "importat"
+    assert _count(session, Invoice) == 2
+    assert _count(session, InvoiceLine) == 4  # 2 linii per document
+    source_objects_dupa_import1 = _count(session, SourceObject)
+
+    # --- criteriul 2: reimportarea aceluiasi lot nu creeaza documente noi ---
+    batch2 = start_batch(session, tip="scan_local", sursa="test-reimport")
+    r1b = ingest_file(session, batch2, IngestFile(_read("factura_normala.xml"), "factura_normala.xml"))
+    r2b = ingest_file(session, batch2, IngestFile(_read("factura_storno.xml"), "factura_storno.xml"))
+    finish_batch(session, batch2)
+    session.commit()
+
+    assert r1b.stare == "duplicat"
+    assert r2b.stare == "duplicat"
+    assert _count(session, Invoice) == 2
+    assert _count(session, InvoiceSourceLink) == 2
+    # sursele binare noi (XML-urile reimportate) TOT se stocheaza -- captura completa (P1) --
+    # doar factura normalizata nu se duplica.
+    assert _count(session, SourceObject) == source_objects_dupa_import1 + 2
+
+    # --- criteriul 4: anularea lotului readuce baza la starea initiala ---
+    checksum_surse_inainte_de_anulare = _count(session, SourceObject)
+
+    cancel_batch(session, batch1, motiv="test anulare")
+    session.commit()
+
+    assert _count(session, Invoice) == 0
+    assert _count(session, InvoiceLine) == 0
+    # sursele binare NU se sterg la anulare (insert-only, cap. 4)
+    assert _count(session, SourceObject) == checksum_surse_inainte_de_anulare
+
+    batch1_reloaded = session.get(ImportBatch, batch1.id)
+    assert batch1_reloaded.stare == "anulat"
+    assert batch1_reloaded.motiv_anulare == "test anulare"
+
+
+def test_corrupted_zip_does_not_stop_batch(db_session_commit):
+    session = db_session_commit
+    batch = start_batch(session, tip="scan_local", sursa="test-corupt")
+
+    r_corupt = ingest_file(session, batch, IngestFile(b"PK\x03\x04not-a-real-zip", "corupt.zip"))
+    r_ok = ingest_file(session, batch, IngestFile(_read("factura_normala.xml"), "factura_normala.xml"))
+    finish_batch(session, batch)
+    session.commit()
+
+    assert r_corupt.stare == "eroare"
+    assert r_ok.stare == "importat"
+    assert batch.nr_erori == 1
+    assert batch.nr_documente == 1
+    assert batch.stare == "terminat_cu_erori"

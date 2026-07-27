@@ -13,9 +13,17 @@ class Settings(BaseSettings):
     scan_root: str = "./data/scan"
     environment: str = "development"
 
+    # CIF-urile proprii (separate prin ;) -- determina directia (intrare/iesire)
+    # a unei facturi: emitent in aceasta lista => iesire, altfel intrare.
+    own_cifs: str = ""
+
     @property
     def watch_directory_list(self) -> list[str]:
         return [d.strip() for d in self.watch_directories.split(";") if d.strip()]
+
+    @property
+    def own_cif_list(self) -> list[str]:
+        return [c.strip() for c in self.own_cifs.split(";") if c.strip()]
 
 
 @lru_cache
