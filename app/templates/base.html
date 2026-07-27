@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}AIeFactura{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="/static/js/htmx.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">AIeFactura</a>
+    {% if user %}
+    <nav>
+      <a href="/">Tablou de bord</a>
+      <a href="/registru">Registru</a>
+      <a href="/importuri">Importuri</a>
+      {% if user.rol == "administrator" %}<a href="/admin">Administrare</a>{% endif %}
+    </nav>
+    <div class="user-info">
+      <span>{{ user.username }} &middot; {{ user.rol }}</span>
+      <form class="inline" method="post" action="/logout">
+        <button type="submit" class="link-button">Ieșire</button>
+      </form>
+    </div>
+    {% endif %}
+  </header>
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

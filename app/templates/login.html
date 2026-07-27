@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Autentificare — AIeFactura{% endblock %}
+{% block content %}
+<div class="login-wrap">
+  <h1>AIeFactura</h1>
+  {% if eroare %}<div class="error-box">{{ eroare }}</div>{% endif %}
+  <form method="post" action="/login">
+    <label for="username">Utilizator</label>
+    <input type="text" id="username" name="username" required autofocus>
+    <label for="password">Parolă</label>
+    <input type="password" id="password" name="password" required>
+    <button type="submit">Autentificare</button>
+  </form>
+</div>
+{% endblock %}

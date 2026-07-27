@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Importuri — AIeFactura{% endblock %}
+{% block content %}
+<h1>Importuri</h1>
+
+{% if user.rol == "administrator" %}
+<div class="panel">
+  <h2 style="margin-top:0">Import manual</h2>
+  <div id="dropzone" class="dropzone">
+    Trage aici fișiere ZIP/XML, sau
+    <label style="color:var(--brand); cursor:pointer; text-decoration:underline">
+      alege de pe disc
+      <input type="file" id="file-input" multiple accept=".zip,.xml" style="display:none">
+    </label>
+  </div>
+  <form method="post" action="/importuri/scaneaza">
+    <button type="submit" class="secondary">Scanează directorul configurat ({{ scan_root }})</button>
+  </form>
+</div>
+<script>
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('file-input');
+
+  function uploadFiles(files) {
+    if (!files || files.length === 0) return;
+    const form = new FormData();
+    for (const f of files) form.append('fisiere', f);
+    dropzone.textContent = 'Se încarcă...';
+    fetch('/importuri/upload', { method: 'POST', body: form })
+      .then(resp => { if (resp.redirected) window.location.href = resp.url; else window.location.reload(); })
+      .catch(() => { dropzone.textContent = 'Eroare la încărcare.'; });
+  }
+
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    uploadFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', () => uploadFiles(fileInput.files));
+</script>
+{% endif %}
+
+<div class="panel">
+  <h2 style="margin-top:0">Loturi</h2>
+  <table>
+    <thead><tr><th>Lot</th><th>Tip</th><th>Sursă</th><th>Pornit</th><th>Fișiere</th><th>Documente</th><th>Erori</th><th>Stare</th></tr></thead>
+    <tbody>
+      {% for b in loturi %}
+      <tr>
+        <td><a href="/importuri/{{ b.id }}">#{{ b.id }}</a></td>
+        <td>{{ b.tip }}</td>
+        <td>{{ b.sursa or "—" }}</td>
+        <td>{{ b.pornit_la }}</td>
+        <td>{{ b.nr_fisiere }}</td>
+        <td>{{ b.nr_documente }}</td>
+        <td>{{ b.nr_erori }}</td>
+        <td>
+          {% if b.stare == "anulat" %}<span class="badge badge-neutru">anulat</span>
+          {% elif b.stare == "terminat_cu_erori" %}<span class="badge badge-warn">terminat cu erori</span>
+          {% elif b.stare == "terminat" %}<span class="badge badge-ok">terminat</span>
+          {% else %}<span class="badge badge-neutru">{{ b.stare }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

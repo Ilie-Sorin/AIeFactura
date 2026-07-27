@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Lot #{{ batch.id }} — AIeFactura{% endblock %}
+{% block content %}
+<h1>Lot de import #{{ batch.id }}</h1>
+
+<div class="panel">
+  <dl class="kv">
+    <dt>Tip</dt><dd>{{ batch.tip }}</dd>
+    <dt>Sursă</dt><dd>{{ batch.sursa or "—" }}</dd>
+    <dt>Pornit la</dt><dd>{{ batch.pornit_la }}</dd>
+    <dt>Terminat la</dt><dd>{{ batch.terminat_la or "—" }}</dd>
+    <dt>Fișiere / Documente / Erori</dt><dd>{{ batch.nr_fisiere }} / {{ batch.nr_documente }} / {{ batch.nr_erori }}</dd>
+    <dt>Stare</dt><dd>{{ batch.stare }}</dd>
+    {% if batch.stare == "anulat" %}
+    <dt>Motiv anulare</dt><dd>{{ batch.motiv_anulare }}</dd>
+    <dt>Anulat la</dt><dd>{{ batch.anulat_la }}</dd>
+    {% endif %}
+  </dl>
+
+  {% if user.rol == "administrator" and batch.stare != "anulat" %}
+  <form method="post" action="/importuri/{{ batch.id }}/anuleaza" style="margin-top:16px" onsubmit="return confirm('Sigur anulezi acest lot? Documentele normalizate produse de el vor fi șterse (sursele rămân).');">
+    <label for="motiv">Motiv anulare</label>
+    <textarea id="motiv" name="motiv" rows="2" required></textarea>
+    <button type="submit" class="danger" style="margin-top:8px">Anulează lotul</button>
+  </form>
+  {% endif %}
+</div>
+
+<h2>Documente din lot</h2>
+<div class="panel">
+  {% if documente %}
+  <table>
+    <thead><tr><th>Număr</th><th>Emitent</th><th>Total</th><th>Stare</th></tr></thead>
+    <tbody>
+      {% for d in documente %}
+      <tr>
+        <td><a href="/documente/{{ d.id }}">{{ d.numar_brut }}</a></td>
+        <td>{{ d.cif_emitent }}</td>
+        <td>{{ "%.2f"|format(d.total_document) }} {{ d.moneda }}</td>
+        <td>{{ d.stare }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Niciun document creat de acest lot (anulat sau toate au fost duplicate).</p>
+  {% endif %}
+</div>
+
+<h2>Jurnal</h2>
+<div class="panel">
+  <table>
+    <thead><tr><th>Moment</th><th>Acțiune</th><th>Detalii</th></tr></thead>
+    <tbody>
+      {% for a in jurnal %}
+      <tr><td>{{ a.moment }}</td><td>{{ a.actiune }}</td><td>{{ a.detalii or "" }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

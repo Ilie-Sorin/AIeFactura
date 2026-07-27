@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Administrare — AIeFactura{% endblock %}
+{% block content %}
+<h1>Administrare</h1>
+
+<div class="panel">
+  <h2 style="margin-top:0">Utilizatori</h2>
+  <table>
+    <thead><tr><th>Utilizator</th><th>Rol</th><th>Activ</th><th>Ultima autentificare</th></tr></thead>
+    <tbody>
+      {% for u in utilizatori %}
+      <tr>
+        <td>{{ u.username }}</td>
+        <td>{{ u.rol }}</td>
+        <td>{{ "da" if u.activ else "nu" }}</td>
+        <td>{{ u.ultima_autentificare or "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Utilizator nou</h2>
+  <form method="post" action="/admin/utilizatori">
+    <label for="username">Utilizator</label>
+    <input type="text" id="username" name="username" required>
+    <label for="password">Parolă</label>
+    <input type="password" id="password" name="password" required>
+    <label for="rol">Rol</label>
+    <select id="rol" name="rol">
+      <option value="consultare">consultare</option>
+      <option value="administrator">administrator</option>
+    </select>
+    <button type="submit" style="margin-top:12px">Creează utilizator</button>
+  </form>
+</div>
+{% endblock %}

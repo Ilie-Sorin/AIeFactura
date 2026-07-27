@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}{{ invoice.numar_brut }} — AIeFactura{% endblock %}
+{% block content %}
+<h1>Factură {{ invoice.numar_brut }}</h1>
+
+{% if invoice.eroare_mesaj %}
+<div class="error-box"><strong>Eroare:</strong> {{ invoice.eroare_mesaj }}</div>
+{% endif %}
+
+<div class="panel">
+  <dl class="kv">
+    <dt>Direcție</dt><dd>{{ invoice.directie }}</dd>
+    <dt>CIF emitent</dt><dd>{{ invoice.cif_emitent }}</dd>
+    <dt>CIF beneficiar</dt><dd>{{ invoice.cif_beneficiar or "—" }}</dd>
+    <dt>Număr brut / normalizat</dt><dd>{{ invoice.numar_brut }} / {{ invoice.numar_normalizat }}</dd>
+    <dt>Serie / parte numerică</dt><dd>{{ invoice.serie or "—" }} / {{ invoice.numar_numeric if invoice.numar_numeric is not none else "—" }}</dd>
+    <dt>Dată emitere / scadență</dt><dd>{{ invoice.data_emitere }} / {{ invoice.data_scadenta or "—" }}</dd>
+    <dt>Total fără TVA</dt><dd>{{ "%.2f"|format(invoice.total_fara_tva) }} {{ invoice.moneda }}</dd>
+    <dt>Total TVA</dt><dd>{{ "%.2f"|format(invoice.total_tva) }} {{ invoice.moneda }}</dd>
+    <dt>Total document</dt><dd>{{ "%.2f"|format(invoice.total_document) }} {{ invoice.moneda }}</dd>
+    <dt>Contract / comandă</dt><dd>{{ invoice.nr_contract or "—" }} / {{ invoice.nr_comanda or "—" }}</dd>
+    <dt>Versiune schemă</dt><dd>{{ invoice.versiune_cius or "—" }}</dd>
+    <dt>Stare</dt><dd>{{ invoice.stare }}</dd>
+  </dl>
+
+  <p style="margin-top:16px">
+    <a class="button" href="/documente/{{ invoice.id }}/xml">Descarcă XML</a>
+    {% if are_zip %}<a class="button secondary" href="/documente/{{ invoice.id }}/zip">Descarcă ZIP original</a>{% endif %}
+  </p>
+</div>
+
+<h2>Părți</h2>
+<div class="panel">
+  <table>
+    <thead><tr><th>Rol</th><th>Denumire</th><th>CIF</th><th>Țară</th><th>Cont bancar</th></tr></thead>
+    <tbody>
+      {% for p in invoice.parts %}
+      <tr>
+        <td>{{ p.rol }}</td>
+        <td>{{ p.denumire or "—" }}</td>
+        <td>{{ p.cif_brut or "—" }}</td>
+        <td>{{ p.tara or "—" }}</td>
+        <td>{{ p.cont_bancar or "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2>Linii</h2>
+<div class="panel">
+  <table>
+    <thead>
+      <tr><th>#</th><th>Cod</th><th>Descriere</th><th>Cant.</th><th>UM</th><th>Preț unitar</th><th>Valoare</th><th>Cotă TVA</th></tr>
+    </thead>
+    <tbody>
+      {% for l in invoice.lines %}
+      <tr>
+        <td>{{ l.nr_crt }}</td>
+        <td>{{ l.cod_articol_furnizor or "—" }}</td>
+        <td>{{ l.descriere }}</td>
+        <td>{{ l.cantitate }}</td>
+        <td>{{ l.um or "—" }}</td>
+        <td>{{ "%.2f"|format(l.pret_unitar) if l.pret_unitar is not none else "—" }}</td>
+        <td>{{ "%.2f"|format(l.valoare_fara_tva) if l.valoare_fara_tva is not none else "—" }}</td>
+        <td>{{ l.cota_tva }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2>Sumar TVA pe cote</h2>
+<div class="panel">
+  <table>
+    <thead><tr><th>Cotă</th><th>Categorie</th><th>Bază</th><th>TVA</th></tr></thead>
+    <tbody>
+      {% for t in invoice.tax_summaries %}
+      <tr><td>{{ t.cota }}%</td><td>{{ t.categorie or "—" }}</td><td>{{ "%.2f"|format(t.baza) }}</td><td>{{ "%.2f"|format(t.tva) }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if invoice.attachments %}
+<h2>Atașamente</h2>
+<div class="panel">
+  <table>
+    <thead><tr><th>Nume</th><th>Descriere</th></tr></thead>
+    <tbody>
+      {% for a in invoice.attachments %}
+      <tr>
+        <td>{% if a.source_object_id %}<a href="/atasamente/{{ a.id }}">{{ a.nume or "atașament" }}</a>{% else %}{{ a.nume or "—" }}{% endif %}</td>
+        <td>{{ a.descriere or "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<h2>Istoric</h2>
+<div class="panel">
+  {% if istoric %}
+  <table>
+    <thead><tr><th>Moment</th><th>Acțiune</th><th>Detalii</th></tr></thead>
+    <tbody>
+      {% for a in istoric %}
+      <tr><td>{{ a.moment }}</td><td>{{ a.actiune }}</td><td>{{ a.detalii or "" }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Fără istoric înregistrat.</p>
+  {% endif %}
+</div>
+{% endblock %}

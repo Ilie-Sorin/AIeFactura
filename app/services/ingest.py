@@ -326,6 +326,14 @@ def ingest_file(
     session.add(invoice)
     session.flush()
 
+    if zip_source is not None:
+        # Legatura la ZIP-ul original, pentru ecranul Document (cap. 9: "acces la
+        # ZIP si XML") -- reutilizam invoice_source_link si pentru sursa "principala",
+        # nu doar pentru sursele suplimentare de la duplicate.
+        session.add(
+            InvoiceSourceLink(invoice_id=invoice.id, source_object_id=zip_source.id, batch_id=batch.id)
+        )
+
     for p in parsed.parts:
         session.add(
             InvoiceParty(

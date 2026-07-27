@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Tablou de bord — AIeFactura{% endblock %}
+{% block content %}
+<h1>Tablou de bord</h1>
+
+<div class="stat-row">
+  <div class="stat"><div class="value">{{ total_documente }}</div><div class="label">documente în registru</div></div>
+  <div class="stat"><div class="value">{{ total_erori }}</div><div class="label">documente cu erori</div></div>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Documente recente</h2>
+  {% if documente_noi %}
+  <table>
+    <thead><tr><th>Număr</th><th>Emitent</th><th>Dată</th><th>Total</th><th>Stare</th></tr></thead>
+    <tbody>
+      {% for d in documente_noi %}
+      <tr>
+        <td><a href="/documente/{{ d.id }}">{{ d.numar_brut }}</a></td>
+        <td>{{ d.cif_emitent }}</td>
+        <td>{{ d.data_emitere }}</td>
+        <td>{{ "%.2f"|format(d.total_document) }} {{ d.moneda }}</td>
+        <td>
+          {% if d.stare == "eroare" %}<span class="badge badge-erori">eroare</span>
+          {% else %}<span class="badge badge-ok">{{ d.stare }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Niciun document importat încă. Mergi la <a href="/importuri">Importuri</a> pentru a începe.</p>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Documente cu erori</h2>
+  {% if documente_eroare %}
+  <table>
+    <thead><tr><th>Număr</th><th>Emitent</th><th>Mesaj</th></tr></thead>
+    <tbody>
+      {% for d in documente_eroare %}
+      <tr>
+        <td><a href="/documente/{{ d.id }}">{{ d.numar_brut }}</a></td>
+        <td>{{ d.cif_emitent }}</td>
+        <td>{{ d.eroare_mesaj }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Nicio eroare de integritate deschisă.</p>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Loturi recente</h2>
+  <table>
+    <thead><tr><th>Lot</th><th>Tip</th><th>Pornit</th><th>Fișiere</th><th>Documente</th><th>Erori</th><th>Stare</th></tr></thead>
+    <tbody>
+      {% for b in loturi_recente %}
+      <tr>
+        <td><a href="/importuri/{{ b.id }}">#{{ b.id }}</a></td>
+        <td>{{ b.tip }}</td>
+        <td>{{ b.pornit_la }}</td>
+        <td>{{ b.nr_fisiere }}</td>
+        <td>{{ b.nr_documente }}</td>
+        <td>{{ b.nr_erori }}</td>
+        <td>
+          {% if b.stare == "anulat" %}<span class="badge badge-neutru">anulat</span>
+          {% elif b.stare == "terminat_cu_erori" %}<span class="badge badge-warn">terminat cu erori</span>
+          {% elif b.stare == "terminat" %}<span class="badge badge-ok">terminat</span>
+          {% else %}<span class="badge badge-neutru">{{ b.stare }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

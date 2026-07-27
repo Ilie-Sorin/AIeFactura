@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Registru — AIeFactura{% endblock %}
+{% block content %}
+<h1>Registru</h1>
+
+<form class="search-bar" method="get" action="/registru">
+  <input type="text" name="q" value="{{ q }}" placeholder="Număr, CIF, denumire, descriere linie, contract, comandă, ID ANAF...">
+  <button type="submit">Caută</button>
+</form>
+
+<div class="panel">
+  {% if documente %}
+  <table>
+    <thead>
+      <tr>
+        <th>Direcție</th><th>Număr</th><th>Emitent</th><th>Beneficiar</th>
+        <th>Dată</th><th>Total</th><th>Stare</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in documente %}
+      <tr>
+        <td>{{ d.directie }}</td>
+        <td><a href="/documente/{{ d.id }}">{{ d.numar_brut }}</a></td>
+        <td>{{ d.cif_emitent }}</td>
+        <td>{{ d.cif_beneficiar or "—" }}</td>
+        <td>{{ d.data_emitere }}</td>
+        <td>{{ "%.2f"|format(d.total_document) }} {{ d.moneda }}</td>
+        <td>
+          {% if d.stare == "eroare" %}<span class="badge badge-erori">eroare</span>
+          {% else %}<span class="badge badge-ok">{{ d.stare }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Niciun document găsit{{ " pentru \"%s\""|format(q) if q else "" }}.</p>
+  {% endif %}
+</div>
+{% endblock %}
