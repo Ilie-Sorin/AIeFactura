@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Reconciliere — AIeFactura{% endblock %}
+{% block content %}
+<h1>Reconciliere</h1>
+
+<div class="panel">
+  <h2 style="margin-top:0">Profiluri de import extern</h2>
+  {% if profiluri %}
+  <table>
+    <thead><tr><th>Denumire</th><th>Tip sursă</th><th>Format</th><th>Activ</th>{% if user.rol == "administrator" %}<th>Import fișier</th>{% endif %}</tr></thead>
+    <tbody>
+      {% for p in profiluri %}
+      <tr>
+        <td>{{ p.denumire }}</td>
+        <td>{{ p.tip_sursa }}</td>
+        <td>{{ p.format }}</td>
+        <td>{{ "da" if p.activ else "nu" }}</td>
+        {% if user.rol == "administrator" %}
+        <td>
+          <form class="inline" method="post" action="/reconciliere/profiluri/{{ p.id }}/import" enctype="multipart/form-data" style="display:flex; gap:6px; align-items:center">
+            <input type="file" name="fisier" required style="width:auto">
+            <button type="submit" class="secondary">Importă</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Niciun profil de import definit încă.</p>
+  {% endif %}
+
+  {% if user.rol == "administrator" %}
+  <h3 style="font-size:13px; color:var(--muted); margin-top:20px">Profil nou</h3>
+  <form method="post" action="/reconciliere/profiluri">
+    <div style="display:flex; gap:8px; flex-wrap:wrap">
+      <div style="flex:1; min-width:160px"><label for="denumire">Denumire</label><input type="text" id="denumire" name="denumire" required></div>
+      <div style="flex:1; min-width:160px"><label for="tip_sursa">Tip sursă</label><input type="text" id="tip_sursa" name="tip_sursa" placeholder="registru_contabil" required></div>
+      <div><label for="format">Format</label>
+        <select id="format" name="format"><option value="csv">csv</option><option value="excel">excel</option></select>
+      </div>
+    </div>
+    <label for="mapare" style="margin-top:10px">Mapare coloane (JSON: câmp canonic → coloană sursă)</label>
+    <textarea id="mapare" name="mapare" rows="3" required>{"cif": "CIF", "numar_brut": "Numar", "data": "Data", "total_fara_tva": "Fara TVA", "total_tva": "TVA", "total": "Total"}</textarea>
+    <label for="reguli_curatare" style="margin-top:10px">Reguli de curățare (JSON, opțional)</label>
+    <textarea id="reguli_curatare" name="reguli_curatare" rows="2">{"format_data": "%d.%m.%Y", "separator_zecimal": ",", "separator_csv": ";"}</textarea>
+    <button type="submit" style="margin-top:10px">Creează profil</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Reguli de reconciliere</h2>
+  {% if reguli %}
+  <table>
+    <thead><tr><th>Denumire</th><th>Activă</th>{% if user.rol == "administrator" %}<th></th>{% endif %}</tr></thead>
+    <tbody>
+      {% for r in reguli %}
+      <tr>
+        <td>{{ r.denumire }}</td>
+        <td>{{ "da" if r.activa else "nu" }}</td>
+        {% if user.rol == "administrator" %}
+        <td>
+          <form class="inline" method="post" action="/reconciliere/reguli/{{ r.id }}/ruleaza">
+            <button type="submit">Rulează</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Nicio regulă definită încă.</p>
+  {% endif %}
+
+  {% if user.rol == "administrator" %}
+  <h3 style="font-size:13px; color:var(--muted); margin-top:20px">Regulă nouă</h3>
+  <form method="post" action="/reconciliere/reguli">
+    <label for="r_denumire">Denumire</label>
+    <input type="text" id="r_denumire" name="denumire" required>
+    <label for="definitie" style="margin-top:10px">Definiție (JSON: grupare, componente, praguri — cap. 7)</label>
+    <textarea id="definitie" name="definitie" rows="10">{
+  "regula": "efactura_vs_registru_contabil",
+  "sursa_a": "efactura.grup",
+  "sursa_b": "import.registru_contabil",
+  "grupare": ["cif_furnizor", "luna_document"],
+  "componente": [
+    {"camp": "numar_normalizat", "pondere": 40},
+    {"camp": "cif_furnizor", "pondere": 25},
+    {"camp": "total", "pondere": 25, "toleranta": 0.02},
+    {"camp": "data_document", "pondere": 10, "toleranta_zile": 3}
+  ],
+  "praguri": {"acceptare_automata": 90, "exceptie_sub": 60}
+}</textarea>
+    <button type="submit" style="margin-top:10px">Creează regulă</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Rulări recente</h2>
+  {% if rulari %}
+  <table>
+    <thead><tr><th>Rulare</th><th>Rulat la</th><th>Potriviri</th><th>Excepții</th><th>Ambigue</th></tr></thead>
+    <tbody>
+      {% for r in rulari %}
+      <tr>
+        <td>#{{ r.id }}</td>
+        <td>{{ r.rulat_la }}</td>
+        <td>{{ r.nr_potriviri }}</td>
+        <td><a href="/reconciliere/rezultate?run_id={{ r.id }}">{{ r.nr_exceptii }}</a></td>
+        <td><a href="/reconciliere/rezultate?run_id={{ r.id }}">{{ r.nr_ambigue }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Nicio rulare încă.</p>
+  {% endif %}
+  <p style="margin-top:12px"><a href="/reconciliere/rezultate">Vezi toate rezultatele →</a></p>
+</div>
+{% endblock %}

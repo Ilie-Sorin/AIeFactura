@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Excepții reconciliere — AIeFactura{% endblock %}
+{% block content %}
+<h1>Rezultate reconciliere</h1>
+
+<form class="search-bar" method="get" action="/reconciliere/rezultate">
+  {% if run_id %}<input type="hidden" name="run_id" value="{{ run_id }}">{% endif %}
+  <select name="stare" onchange="this.form.submit()">
+    <option value="" {% if not stare %}selected{% endif %}>Toate stările</option>
+    {% for s in ["noua", "in_lucru", "rezolvata", "acceptata_ca_diferenta", "ignorata"] %}
+    <option value="{{ s }}" {% if stare == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  {% if run_id %}<span style="align-self:center; color:var(--muted)">filtrat pe rularea #{{ run_id }} — <a href="/reconciliere/rezultate{{ '?stare=' + stare if stare else '' }}">elimină filtrul</a></span>{% endif %}
+</form>
+
+<div class="panel">
+  {% if rezultate %}
+  <table>
+    <thead>
+      <tr>
+        <th>Scor</th><th>Stare</th>
+        <th>e-Factura (grup)</th><th>Sursă externă</th>
+        <th>Diferențe</th><th>Motiv</th>
+        {% if user.rol == "administrator" %}<th>Acțiune</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rezultate %}
+      <tr>
+        <td>{{ r.scor if r.scor is not none else "—" }}</td>
+        <td>
+          {% if r.stare == "rezolvata" %}<span class="badge badge-ok">rezolvată</span>
+          {% elif r.stare == "acceptata_ca_diferenta" %}<span class="badge badge-warn">acceptată ca diferență</span>
+          {% elif r.stare == "ignorata" %}<span class="badge badge-neutru">ignorată</span>
+          {% elif r.stare == "in_lucru" %}<span class="badge badge-warn">în lucru</span>
+          {% else %}<span class="badge badge-erori">nouă</span>{% endif %}
+        </td>
+        <td>
+          {% if r.grup %}
+            {% if r.grup.grup %}<a href="/grupuri/{{ r.grup.grup.id }}">grup #{{ r.grup.grup.id }}</a>{% endif %}
+            {% if r.grup.reprezentant_id %}(<a href="/documente/{{ r.grup.reprezentant_id }}">{{ r.grup.numere }}</a>){% endif %}
+            <br><span style="color:var(--muted)">{{ r.grup.cif or "" }}, poziție netă {{ "%.2f"|format(r.grup.grup.pozitie_neta) if r.grup.grup and r.grup.grup.pozitie_neta is not none else "—" }}</span>
+          {% else %}<span style="color:var(--muted)">— (lipsă în e-Factura)</span>{% endif %}
+        </td>
+        <td>
+          {% if r.extern %}
+            {{ r.extern.numar_brut }} — {{ r.extern.cif }}<br>
+            <span style="color:var(--muted)">{{ r.extern.data or "—" }}, total {{ "%.2f"|format(r.extern.total) if r.extern.total is not none else "—" }}</span>
+          {% else %}<span style="color:var(--muted)">— (lipsă în sursa externă)</span>{% endif %}
+        </td>
+        <td style="font-size:11px; color:var(--muted); max-width:220px">
+          {% if r.diferente %}
+            {% for cheie, val in r.diferente.items() %}
+              {% if val is mapping and val.potrivire is defined and not val.potrivire %}
+                <div><strong>{{ cheie }}</strong>: {{ val.grup if val.grup is defined else "" }} ≠ {{ val.extern if val.extern is defined else "" }}{% if val.diferenta is defined %} (Δ {{ val.diferenta }}){% endif %}</div>
+              {% elif cheie == "tip" %}
+                <div>{{ val }}</div>
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+        </td>
+        <td>{{ r.motiv or "—" }}</td>
+        {% if user.rol == "administrator" %}
+        <td>
+          {% if r.stare not in ["acceptata_ca_diferenta", "ignorata"] %}
+          <form class="inline" method="post" action="/reconciliere/rezultate/{{ r.id }}/decide">
+            <input type="hidden" name="stare" value="rezolvata">
+            <input type="hidden" name="decizie" value="potrivire_confirmata">
+            <button type="submit" class="secondary">Confirmă</button>
+          </form>
+          <form class="inline" method="post" action="/reconciliere/rezultate/{{ r.id }}/decide" onsubmit="return promptStareMotiv(this, 'acceptata_ca_diferenta');">
+            <input type="hidden" name="stare" value="acceptata_ca_diferenta">
+            <input type="hidden" name="decizie" value="diferenta_acceptata">
+            <input type="hidden" name="motiv" class="motiv-field">
+            <button type="submit" class="secondary">Acceptă diferența</button>
+          </form>
+          <form class="inline" method="post" action="/reconciliere/rezultate/{{ r.id }}/decide" onsubmit="return promptStareMotiv(this, 'ignorata');">
+            <input type="hidden" name="stare" value="ignorata">
+            <input type="hidden" name="decizie" value="fals_pozitiv">
+            <input type="hidden" name="motiv" class="motiv-field">
+            <button type="submit" class="secondary">Ignoră</button>
+          </form>
+          {% else %}—{% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Niciun rezultat pentru filtrul curent.</p>
+  {% endif %}
+</div>
+<script>
+  function promptStareMotiv(form) {
+    const motiv = prompt('Motivul deciziei (obligatoriu):');
+    if (!motiv) return false;
+    form.querySelector('.motiv-field').value = motiv;
+    return true;
+  }
+</script>
+{% endblock %}
