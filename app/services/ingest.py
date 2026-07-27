@@ -15,13 +15,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models.audit import AuditLog
 from app.models.consolidation import InvoiceRelation
 from app.models.document import Attachment, Invoice, InvoiceLine, InvoiceParty, TaxSummary
 from app.models.enums import BatchStatus, DocumentState, Direction
 from app.models.ingestion import ImportBatch, InvoiceSourceLink, SourceObject
 from app.services.dedup import DedupOutcome, check_duplicate
 from app.services.integrity import check_cif_valid, check_line_sum_vs_total
+from app.services.audit import write_audit as _audit_entry
 from app.services.normalize_cif import normalize_cif
 from app.services.normalize_number import normalize_invoice_number, resolve_numbering_config
 from app.services.xml_parser import InvoiceXmlError, classify_xml_bytes, parse_invoice_xml
@@ -86,14 +86,13 @@ def _audit(
     detalii: dict | None = None,
     utilizator_id: int | None = None,
 ) -> None:
-    session.add(
-        AuditLog(
-            utilizator_id=utilizator_id,
-            actiune=actiune,
-            entitate=entitate,
-            entitate_id=entitate_id,
-            detalii=detalii,
-        )
+    _audit_entry(
+        session,
+        actiune,
+        utilizator_id=utilizator_id,
+        entitate=entitate,
+        entitate_id=entitate_id,
+        detalii=detalii,
     )
 
 
