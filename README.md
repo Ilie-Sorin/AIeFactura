@@ -3,9 +3,11 @@
 Registru local de documente RO e-Factura și motor de reconciliere — vezi
 [`Specificatie_AIeFactura.md`](Specificatie_AIeFactura.md) pentru specificația completă.
 
-Stare curentă: **Checkpoint B** (ingestie, normalizare, stocare, deduplicare,
-consolidare în grupuri, UI de bază) — vezi „Ce urmează" mai jos pentru ce nu e
-încă implementat.
+Stare curentă: **Checkpoint C** (ingestie, normalizare, stocare, deduplicare,
+consolidare în grupuri, motor de reconciliere, UI de bază) — vezi „Ce urmează"
+mai jos pentru ce nu e încă implementat. Acesta e nucleul funcțional descris
+în cap. 1 (P1-P3) al specificației: captură + normalizare + consolidare +
+reconciliere.
 
 ## Stack
 
@@ -68,14 +70,16 @@ app/
     integrity.py        # tripla verificare sumă linii/total/TVA, CIF
     ingest.py           # orchestrare lot de import
     consolidation.py    # relații explicite/deduse, grup + poziție netă (WITH RECURSIVE)
+    external_import.py  # profil Excel/CSV -> external_record (tabel de tranzit)
+    reconciliation.py   # blocking + scorare ponderată + praguri (cap. 7)
     scanner.py          # scanare recursivă foldere
     audit.py            # jurnal de operații
-  routers/         # dashboard, registru, documente, grupuri, relații, importuri, admin, auth
+  routers/         # dashboard, registru, documente, grupuri, relații, reconciliere, importuri, admin, auth
   templates/       # Jinja2 + htmx (vendorizat local, fără CDN)
 migrations/        # Alembic — o migrare per schimbare de schemă, de la primul commit
 tests/
   unit/            # parser, normalizare, deduplicare, integritate
-  integration/     # capăt-la-capăt (import → reimport → anulare), scanner, auth, consolidare
+  integration/     # capăt-la-capăt (import → reimport → anulare), scanner, auth, consolidare, reconciliere
   fixtures/        # facturi UBL sintetice (nu există eșantioane reale ANAF disponibile)
 db/init/           # rol Postgres de runtime, cu privilegii restrânse (GRANT)
 ```
@@ -110,9 +114,30 @@ calculată cu o interogare recursivă (`WITH RECURSIVE`) — se recalculează
 automat la fiecare import, la fiecare confirmare/respingere de relație și la
 anularea unui lot (gestionează corect atât unirea cât și despărțirea grupurilor).
 
+### Reconciliere (cap. 7)
+
+Vezi `app/services/external_import.py` și `app/services/reconciliation.py`.
+Un **profil de import** (`import_profile`) mapează coloanele unui Excel/CSV
+la câmpuri canonice și definește regulile de curățare (format dată, separator
+zecimal); fișierele importate devin `external_record`, într-un lot anulabil
+ca oricare altul.
+
+O **regulă de reconciliere** (`reconciliation_rule.definitie`, JSONB) descrie
+grupare (blocking — momentan `cif_furnizor`/`luna_document`), componente
+ponderate (`numar_normalizat`, `cif_furnizor`, `total`, `data_document`, cu
+toleranțe) și praguri de decizie. **Grupul, nu factura individuală**, e
+unitatea comparată — poziția netă și numerele tuturor membrilor intră în scor.
+
+Peste pragul de acceptare automată (și fără ambiguitate) → `rezolvata` automat.
+Sub pragul de excepție → nu se reține (prea slab ca să conteze). Între praguri,
+sau candidați multipli peste prag → rămâne `noua`, pentru decizie umană
+(confirmare / acceptare ca diferență / ignorare — ultimele două cu motiv
+obligatoriu, impus și la nivel de serviciu). O rulare nouă recalculează
+scorul și diferențele pentru toată lumea, dar **copiază mai departe** orice
+decizie deja luată de un om (identificată prin `utilizator_id IS NOT NULL`).
+
 ## Ce urmează (nu e implementat încă)
 
-- **Reconciliere** (cap. 7): profiluri de import extern, motor de scorare/praguri.
 - **Completitudine/integritate programată** (cap. 8) și alertare (dincolo de triple-check-ul rulat la ingestie).
 - **Export** (structură de foldere ZIP, Excel) și **PDF** cu foaia de stil oficială ANAF.
 - **Sincronizare ANAF** (etapa 3 din specificație) — schema (`anaf_message`) e pregătită, fluxul OAuth nu e implementat.
