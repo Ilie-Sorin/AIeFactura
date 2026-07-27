@@ -19,6 +19,7 @@ from app.models.consolidation import InvoiceGroup, InvoiceGroupMember, InvoiceRe
 from app.models.document import Attachment, Invoice, InvoiceLine, InvoiceParty, TaxSummary
 from app.models.enums import BatchStatus, DocumentState, Direction
 from app.models.ingestion import ImportBatch, InvoiceSourceLink, SourceObject
+from app.models.reconciliation import ExternalRecord, ReconciliationResult
 from app.services.dedup import DedupOutcome, check_duplicate
 from app.services.integrity import check_cif_valid, check_line_sum_vs_total
 from app.services.audit import write_audit as _audit_entry
@@ -493,10 +494,24 @@ def cancel_batch(
             )
         ).all()
         if orfane:
+            # Rezultatele de reconciliere legate de grupuri disparute nu mai
+            # au sens (nimic de reconciliat) -- se sterg odata cu grupul.
+            session.execute(delete(ReconciliationResult).where(ReconciliationResult.group_id.in_(orfane)))
             session.execute(delete(InvoiceGroup).where(InvoiceGroup.id.in_(orfane)))
 
         for inv_id in alte_capete:
             recompute_group(session, inv_id)
+
+    external_record_ids = session.scalars(
+        select(ExternalRecord.id).where(ExternalRecord.batch_id == batch.id)
+    ).all()
+    if external_record_ids:
+        session.execute(
+            delete(ReconciliationResult).where(
+                ReconciliationResult.external_record_id.in_(external_record_ids)
+            )
+        )
+        session.execute(delete(ExternalRecord).where(ExternalRecord.id.in_(external_record_ids)))
 
     batch.stare = BatchStatus.ANULAT
     batch.anulat_la = _now()
