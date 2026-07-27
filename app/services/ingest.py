@@ -15,13 +15,14 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models.consolidation import InvoiceRelation
+from app.models.consolidation import InvoiceGroup, InvoiceGroupMember, InvoiceRelation
 from app.models.document import Attachment, Invoice, InvoiceLine, InvoiceParty, TaxSummary
 from app.models.enums import BatchStatus, DocumentState, Direction
 from app.models.ingestion import ImportBatch, InvoiceSourceLink, SourceObject
 from app.services.dedup import DedupOutcome, check_duplicate
 from app.services.integrity import check_cif_valid, check_line_sum_vs_total
 from app.services.audit import write_audit as _audit_entry
+from app.services.consolidation import consolidate_invoice, recompute_group
 from app.services.normalize_cif import normalize_cif
 from app.services.normalize_number import normalize_invoice_number, resolve_numbering_config
 from app.services.xml_parser import InvoiceXmlError, classify_xml_bytes, parse_invoice_xml
@@ -322,6 +323,10 @@ def ingest_file(
         eroare_mesaj=eroare_mesaj,
         eroare_detalii=eroare_detalii,
         xpath_map=parsed.xpath_map,
+        referinte_xml=[
+            {"tip": r.tip, "valoare": r.valoare, "xpath": r.xpath} for r in parsed.references
+        ]
+        or None,
     )
     session.add(invoice)
     session.flush()
@@ -418,6 +423,8 @@ def ingest_file(
         utilizator_id=utilizator_id,
     )
 
+    consolidate_invoice(session, invoice)
+
     return FileResult(xml_nume, "importat", invoice_id=invoice.id, mesaj=eroare_mesaj)
 
 
@@ -451,11 +458,27 @@ def cancel_batch(
         )
     )
 
+    # Facturile "de partea cealalta" a relatiilor sterse trebuie sa-si
+    # recalculeze grupul dupa ce lotul dispare (posibila despartire de grup).
+    alte_capete: set[int] = set()
+    if invoice_ids:
+        relatii_afectate = session.scalars(
+            select(InvoiceRelation).where(
+                InvoiceRelation.invoice_from.in_(invoice_ids)
+                | InvoiceRelation.invoice_to.in_(invoice_ids)
+            )
+        ).all()
+        alte_capete = {
+            (r.invoice_to if r.invoice_from in invoice_ids else r.invoice_from)
+            for r in relatii_afectate
+        } - set(invoice_ids)
+
     if invoice_ids:
         session.execute(delete(Attachment).where(Attachment.invoice_id.in_(invoice_ids)))
         session.execute(delete(TaxSummary).where(TaxSummary.invoice_id.in_(invoice_ids)))
         session.execute(delete(InvoiceLine).where(InvoiceLine.invoice_id.in_(invoice_ids)))
         session.execute(delete(InvoiceParty).where(InvoiceParty.invoice_id.in_(invoice_ids)))
+        session.execute(delete(InvoiceGroupMember).where(InvoiceGroupMember.invoice_id.in_(invoice_ids)))
         session.execute(
             delete(InvoiceRelation).where(
                 InvoiceRelation.invoice_from.in_(invoice_ids)
@@ -463,6 +486,17 @@ def cancel_batch(
             )
         )
         session.execute(delete(Invoice).where(Invoice.id.in_(invoice_ids)))
+
+        orfane = session.scalars(
+            select(InvoiceGroup.id).where(
+                ~InvoiceGroup.id.in_(select(InvoiceGroupMember.group_id).distinct())
+            )
+        ).all()
+        if orfane:
+            session.execute(delete(InvoiceGroup).where(InvoiceGroup.id.in_(orfane)))
+
+        for inv_id in alte_capete:
+            recompute_group(session, inv_id)
 
     batch.stare = BatchStatus.ANULAT
     batch.anulat_la = _now()

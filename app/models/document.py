@@ -75,6 +75,10 @@ class Invoice(Base):
     eroare_detalii: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     xpath_map: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Referintele brute extrase din XML (storno/comanda/contract/aviz/receptie),
+    # pastrate pentru rezolvarea relatiilor explicite (cap. 6) -- inclusiv cele
+    # intarziate, cand documentul referit soseste ulterior.
+    referinte_xml: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
     retras: Mapped[bool] = mapped_column(default=False)
     retras_la: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
