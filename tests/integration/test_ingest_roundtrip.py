@@ -83,3 +83,27 @@ def test_corrupted_zip_does_not_stop_batch(db_session_commit):
     assert batch.nr_erori == 1
     assert batch.nr_documente == 1
     assert batch.stare == "terminat_cu_erori"
+
+
+def test_line_sum_mismatch_is_imported_with_stare_eroare(db_session_commit):
+    """Criteriul 3 (cap. 14): suma liniilor = totalul = suma pe cote TVA, sau
+    diferenta e raportata explicit -- documentul tot se importa (nu se respinge),
+    doar cu starea si mesajul de eroare completate."""
+    session = db_session_commit
+    batch = start_batch(session, tip="scan_local", sursa="test-dezechilibrat")
+
+    rezultat = ingest_file(
+        session, batch, IngestFile(_read("factura_dezechilibrata.xml"), "factura_dezechilibrata.xml")
+    )
+    finish_batch(session, batch)
+    session.commit()
+
+    assert rezultat.stare == "importat"
+    assert rezultat.invoice_id is not None
+
+    invoice = session.get(Invoice, rezultat.invoice_id)
+    assert invoice.stare == "eroare"
+    assert "suma" in (invoice.eroare_mesaj or "").lower()
+    assert invoice.eroare_detalii is not None
+    # documentul tot exista cu toate liniile lui, in ciuda neconcordantei
+    assert len(invoice.lines) == 1
