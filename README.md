@@ -3,8 +3,9 @@
 Registru local de documente RO e-Factura și motor de reconciliere — vezi
 [`Specificatie_AIeFactura.md`](Specificatie_AIeFactura.md) pentru specificația completă.
 
-Stare curentă: **Checkpoint A** (ingestie, normalizare, stocare, deduplicare,
-UI de bază) — vezi „Ce urmează" mai jos pentru ce nu e încă implementat.
+Stare curentă: **Checkpoint B** (ingestie, normalizare, stocare, deduplicare,
+consolidare în grupuri, UI de bază) — vezi „Ce urmează" mai jos pentru ce nu e
+încă implementat.
 
 ## Stack
 
@@ -66,14 +67,15 @@ app/
     dedup.py            # deduplicare ierarhică (3 niveluri)
     integrity.py        # tripla verificare sumă linii/total/TVA, CIF
     ingest.py           # orchestrare lot de import
+    consolidation.py    # relații explicite/deduse, grup + poziție netă (WITH RECURSIVE)
     scanner.py          # scanare recursivă foldere
     audit.py            # jurnal de operații
-  routers/         # dashboard, registru, documente, importuri, admin, auth
+  routers/         # dashboard, registru, documente, grupuri, relații, importuri, admin, auth
   templates/       # Jinja2 + htmx (vendorizat local, fără CDN)
-migrations/        # Alembic — o singură migrare inițială deocamdată
+migrations/        # Alembic — o migrare per schimbare de schemă, de la primul commit
 tests/
   unit/            # parser, normalizare, deduplicare, integritate
-  integration/     # capăt-la-capăt (import → reimport → anulare), scanner, auth
+  integration/     # capăt-la-capăt (import → reimport → anulare), scanner, auth, consolidare
   fixtures/        # facturi UBL sintetice (nu există eșantioane reale ANAF disponibile)
 db/init/           # rol Postgres de runtime, cu privilegii restrânse (GRANT)
 ```
@@ -93,9 +95,23 @@ Trei niveluri, în ordine descrescătoare de certitudine — vezi `app/services/
 2. SHA-256 pe XML-ul facturii
 3. Tuplul (CIF emitent, număr normalizat, dată, total) — semnalat, nu blocant
 
+### Consolidare (cap. 6)
+
+Vezi `app/services/consolidation.py`. Relații **explicite** (din `cac:BillingReference`
+al XML-ului, `sursa='xml'`, auto-confirmate) și relații **deduse** (aceeași
+valoare + tip complementar factură/credit în fereastra de 90 zile, sau aceeași
+comandă/contract — `sursa='regula'`, rămân `propusa` până la decizie umană din
+UI). Referințele care nu se pot rezolva imediat (documentul-țintă nu a sosit
+încă) se rețin în `invoice.referinte_xml` și se reîncearcă la fiecare import
+ulterior de la același furnizor.
+
+Grupul (`invoice_group`) e componenta conexă peste relațiile **confirmate**,
+calculată cu o interogare recursivă (`WITH RECURSIVE`) — se recalculează
+automat la fiecare import, la fiecare confirmare/respingere de relație și la
+anularea unui lot (gestionează corect atât unirea cât și despărțirea grupurilor).
+
 ## Ce urmează (nu e implementat încă)
 
-- **Consolidare** (cap. 6): relații deduse, grupuri cu poziție netă, interogare `WITH RECURSIVE`.
 - **Reconciliere** (cap. 7): profiluri de import extern, motor de scorare/praguri.
 - **Completitudine/integritate programată** (cap. 8) și alertare (dincolo de triple-check-ul rulat la ingestie).
 - **Export** (structură de foldere ZIP, Excel) și **PDF** cu foaia de stil oficială ANAF.
