@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Grup #{{ grup.id }} — AIeFactura{% endblock %}
+{% block content %}
+<h1>Grup #{{ grup.id }}</h1>
+
+<div class="stat-row">
+  <div class="stat"><div class="value">{{ "%.2f"|format(grup.pozitie_neta) if grup.pozitie_neta is not none else "—" }}</div><div class="label">poziție netă</div></div>
+  <div class="stat"><div class="value">{{ membri|length }}</div><div class="label">documente în grup</div></div>
+</div>
+
+<div class="panel">
+  <table>
+    <thead><tr><th>Semn</th><th>Număr</th><th>Dată</th><th>Tip document</th><th>Total</th></tr></thead>
+    <tbody>
+      {% for m in membri %}
+      <tr>
+        <td>{{ "+" if m.semn == 1 else "−" }}</td>
+        <td><a href="/documente/{{ m.invoice.id }}">{{ m.invoice.numar_brut }}</a></td>
+        <td>{{ m.invoice.data_emitere }}</td>
+        <td>{{ m.invoice.tip_document or "—" }}</td>
+        <td>{{ "%.2f"|format(m.invoice.total_document) }} {{ m.invoice.moneda }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

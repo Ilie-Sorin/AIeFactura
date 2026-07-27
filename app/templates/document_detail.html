@@ -21,6 +21,7 @@
     <dt>Contract / comandă</dt><dd>{{ invoice.nr_contract or "—" }} / {{ invoice.nr_comanda or "—" }}</dd>
     <dt>Versiune schemă</dt><dd>{{ invoice.versiune_cius or "—" }}</dd>
     <dt>Stare</dt><dd>{{ invoice.stare }}</dd>
+    <dt>Grup</dt><dd>{% if grup_id %}<a href="/grupuri/{{ grup_id }}">#{{ grup_id }}</a>{% else %}—{% endif %}</dd>
   </dl>
 
   <p style="margin-top:16px">
@@ -28,6 +29,85 @@
     {% if are_zip %}<a class="button secondary" href="/documente/{{ invoice.id }}/zip">Descarcă ZIP original</a>{% endif %}
   </p>
 </div>
+
+<h2>Relații</h2>
+<div class="panel">
+  {% if relatii %}
+  <table>
+    <thead><tr><th>Document</th><th>Direcție</th><th>Tip</th><th>Sursă</th><th>Scor</th><th>Stare</th><th>Motiv</th>{% if user.rol == "administrator" %}<th></th>{% endif %}</tr></thead>
+    <tbody>
+      {% for r in relatii %}
+      <tr>
+        <td>{% if r.celalalt %}<a href="/documente/{{ r.celalalt.id }}">{{ r.celalalt.numar_brut }}</a>{% else %}—{% endif %}</td>
+        <td>{{ r.directie }}</td>
+        <td>{{ r.tip }}</td>
+        <td>{{ r.sursa }}</td>
+        <td>{{ r.scor if r.scor is not none else "—" }}</td>
+        <td>
+          {% if r.stare == "confirmata" %}<span class="badge badge-ok">confirmată</span>
+          {% elif r.stare == "respinsa" %}<span class="badge badge-neutru">respinsă</span>
+          {% else %}<span class="badge badge-warn">propusă</span>{% endif %}
+        </td>
+        <td>{{ r.motiv or "—" }}</td>
+        {% if user.rol == "administrator" %}
+        <td>
+          {% if r.stare == "propusa" %}
+          <form class="inline" method="post" action="/relatii/{{ r.id }}/decide">
+            <input type="hidden" name="intoarce_la" value="{{ invoice.id }}">
+            <input type="hidden" name="decizie" value="confirmata">
+            <button type="submit" class="secondary">Confirmă</button>
+          </form>
+          <form class="inline" method="post" action="/relatii/{{ r.id }}/decide" onsubmit="return promptMotiv(this);">
+            <input type="hidden" name="intoarce_la" value="{{ invoice.id }}">
+            <input type="hidden" name="decizie" value="respinsa">
+            <input type="hidden" name="motiv" class="motiv-field">
+            <button type="submit" class="secondary">Respinge</button>
+          </form>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Nicio relație înregistrată pentru acest document.</p>
+  {% endif %}
+
+  {% if user.rol == "administrator" %}
+  <h3 style="font-size:13px; color:var(--muted); margin-top:20px">Leagă manual cu alt document</h3>
+  <form method="post" action="/relatii/manuala" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap">
+    <input type="hidden" name="invoice_from_id" value="{{ invoice.id }}">
+    <div style="flex:1; min-width:160px">
+      <label for="numar_tinta">Număr document (același furnizor)</label>
+      <input type="text" id="numar_tinta" name="numar_tinta" required>
+    </div>
+    <div>
+      <label for="tip">Tip relație</label>
+      <select id="tip" name="tip">
+        <option value="storno">storno</option>
+        <option value="comanda_comuna">comandă comună</option>
+        <option value="contract_comun">contract comun</option>
+        <option value="atasat">document atașat</option>
+        <option value="avans_final">avans / final</option>
+      </select>
+    </div>
+    <div style="flex:1; min-width:160px">
+      <label for="motiv">Motiv</label>
+      <input type="text" id="motiv" name="motiv">
+    </div>
+    <button type="submit">Leagă</button>
+  </form>
+  {% endif %}
+</div>
+<script>
+  function promptMotiv(form) {
+    const motiv = prompt('Motivul respingerii:');
+    if (!motiv) return false;
+    form.querySelector('.motiv-field').value = motiv;
+    return true;
+  }
+</script>
 
 <h2>Părți</h2>
 <div class="panel">

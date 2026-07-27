@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.auth import User
 from app.models.audit import AuditLog
+from app.models.consolidation import InvoiceGroupMember, InvoiceRelation
 from app.models.document import Attachment, Invoice
 from app.models.ingestion import InvoiceSourceLink, SourceObject
 from app.security import require_login
@@ -40,10 +41,46 @@ def document_detail(
         .order_by(AuditLog.moment.desc())
     ).all()
 
+    grup_id = db.scalar(
+        select(InvoiceGroupMember.group_id).where(InvoiceGroupMember.invoice_id == invoice.id)
+    )
+
+    relatii_brute = db.scalars(
+        select(InvoiceRelation).where(
+            or_(InvoiceRelation.invoice_from == invoice.id, InvoiceRelation.invoice_to == invoice.id)
+        )
+    ).all()
+    alte_capete_ids = {
+        (r.invoice_to if r.invoice_from == invoice.id else r.invoice_from) for r in relatii_brute
+    }
+    alte_facturi = {
+        i.id: i for i in db.scalars(select(Invoice).where(Invoice.id.in_(alte_capete_ids))).all()
+    }
+    relatii = [
+        {
+            "id": r.id,
+            "celalalt": alte_facturi.get(r.invoice_to if r.invoice_from == invoice.id else r.invoice_from),
+            "directie": "spre" if r.invoice_from == invoice.id else "dinspre",
+            "tip": r.tip,
+            "sursa": r.sursa,
+            "stare": r.stare,
+            "scor": r.scor,
+            "motiv": r.motiv,
+        }
+        for r in relatii_brute
+    ]
+
     return templates.TemplateResponse(
         request,
         "document_detail.html",
-        {"user": user, "invoice": invoice, "are_zip": are_zip, "istoric": istoric},
+        {
+            "user": user,
+            "invoice": invoice,
+            "are_zip": are_zip,
+            "istoric": istoric,
+            "grup_id": grup_id,
+            "relatii": relatii,
+        },
     )
 
 

@@ -9,7 +9,7 @@ from starlette.responses import RedirectResponse
 from starlette.status import HTTP_302_FOUND, HTTP_303_SEE_OTHER, HTTP_307_TEMPORARY_REDIRECT, HTTP_308_PERMANENT_REDIRECT
 
 from app.config import get_settings
-from app.routers import admin, auth, dashboard, documents, imports, registry
+from app.routers import admin, auth, dashboard, documents, groups, imports, registry, relations
 from app.scheduler import shutdown_scheduler, start_scheduler
 
 _REDIRECT_STATUSES = {HTTP_302_FOUND, HTTP_303_SEE_OTHER, HTTP_307_TEMPORARY_REDIRECT, HTTP_308_PERMANENT_REDIRECT}
@@ -33,6 +33,8 @@ def create_app() -> FastAPI:
     app.include_router(dashboard.router)
     app.include_router(registry.router)
     app.include_router(documents.router)
+    app.include_router(groups.router)
+    app.include_router(relations.router)
     app.include_router(imports.router)
     app.include_router(admin.router)
 

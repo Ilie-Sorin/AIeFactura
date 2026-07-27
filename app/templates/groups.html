@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Grupuri — AIeFactura{% endblock %}
+{% block content %}
+<h1>Grupuri</h1>
+<p style="color:var(--muted)">Grupul, nu factura individuală, e unitatea comparată la reconciliere.</p>
+
+<div class="panel">
+  {% if grupuri %}
+  <table>
+    <thead><tr><th>Grup</th><th>Tip</th><th>Membri</th><th>Poziție netă</th><th>Calculat la</th></tr></thead>
+    <tbody>
+      {% for g in grupuri %}
+      <tr>
+        <td><a href="/grupuri/{{ g.id }}">#{{ g.id }}</a></td>
+        <td>{{ g.tip }}</td>
+        <td>{{ g.members|length }}</td>
+        <td>{{ "%.2f"|format(g.pozitie_neta) if g.pozitie_neta is not none else "—" }}</td>
+        <td>{{ g.calculat_la or "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Niciun grup calculat încă.</p>
+  {% endif %}
+</div>
+{% endblock %}

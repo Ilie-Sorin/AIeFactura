@@ -1,10 +1,14 @@
 import datetime as dt
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, SmallInteger, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+
+if TYPE_CHECKING:
+    from app.models.document import Invoice
 
 
 class InvoiceRelation(Base):
@@ -51,3 +55,4 @@ class InvoiceGroupMember(Base):
     semn: Mapped[int] = mapped_column(SmallInteger, default=1)
 
     group: Mapped["InvoiceGroup"] = relationship(back_populates="members")
+    invoice: Mapped["Invoice"] = relationship()
