@@ -224,9 +224,15 @@ def _parse_party(party_el: etree._Element, rol: str) -> ParsedParty:
     name_el = _first_el(
         party_el, "cac:PartyLegalEntity/cbc:RegistrationName", "cac:PartyName/cbc:Name"
     )
+    # cac:PartyTaxScheme/cbc:CompanyID e CIF-ul (codul de identificare fiscala,
+    # de regula cu prefix RO) -- cac:PartyLegalEntity/cbc:CompanyID e numarul
+    # de la Registrul Comertului (ex. "J2007000673234"), un identificator
+    # DIFERIT, care nu trebuie confundat cu CIF-ul (erau confundate anterior:
+    # se afisa numarul de Reg. Com. peste tot unde ar fi trebuit CIF-ul).
     cif_el = _first_el(
-        party_el, "cac:PartyLegalEntity/cbc:CompanyID", "cac:PartyTaxScheme/cbc:CompanyID"
+        party_el, "cac:PartyTaxScheme/cbc:CompanyID", "cac:PartyLegalEntity/cbc:CompanyID"
     )
+    reg_com_el = _el(party_el, "cac:PartyLegalEntity/cbc:CompanyID")
     address_el = _el(party_el, "cac:PostalAddress")
     country_el = _el(address_el, "cac:Country/cbc:IdentificationCode")
     vat_el = _el(party_el, "cac:PartyTaxScheme/cbc:CompanyID")
@@ -242,6 +248,7 @@ def _parse_party(party_el: etree._Element, rol: str) -> ParsedParty:
         rol=rol,
         denumire=_text(name_el),
         cif_brut=_text(cif_el),
+        nr_reg_com=_text(reg_com_el),
         adresa=_format_address(address_el),
         tara=_text(country_el),
         cod_tva=_text(vat_el),

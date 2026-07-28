@@ -10,14 +10,14 @@ def test_normalize_cif_strips_prefix_spaces_zeros():
 
 
 def test_valid_cif_examples_pass_control_digit():
-    # calculate cu algoritmul ANAF: cheie [7,5,3,2,1,7,4,1,9], mod 11
-    assert is_valid_cif("185472901") is True
-    assert is_valid_cif("RO185472901") is True
-    assert is_valid_cif("143981007") is True
+    # calculate cu algoritmul ANAF: cheie [7,5,3,2,1,7,5,3,2], mod 11
+    assert is_valid_cif("185472903") is True
+    assert is_valid_cif("RO185472903") is True
+    assert is_valid_cif("143981006") is True
 
 
 def test_invalid_control_digit_fails():
-    assert is_valid_cif("185472900") is False
+    assert is_valid_cif("185472901") is False
     assert is_valid_cif("143981001") is False
 
 

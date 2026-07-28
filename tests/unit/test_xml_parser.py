@@ -47,14 +47,88 @@ def test_parse_factura_normala_parties():
     roles = {p.rol: p for p in parsed.parts}
 
     assert roles["furnizor"].denumire == "Furnizor Exemplu SRL"
-    assert roles["furnizor"].cif_brut == "185472901"
+    assert roles["furnizor"].cif_brut == "RO185472901"
+    assert roles["furnizor"].nr_reg_com == "J40/1234/2020"
     assert roles["furnizor"].cod_tva == "RO185472901"
     assert roles["furnizor"].cont_bancar == "RO49AAAA1B31007593840000"
     assert roles["furnizor"].tara == "RO"
 
     assert roles["client"].denumire == "Client Exemplu SA"
-    assert roles["client"].cif_brut == "143981007"
+    assert roles["client"].cif_brut == "RO143981007"
+    assert roles["client"].nr_reg_com == "J12/567/2015"
     assert "reprezentant_fiscal" not in roles
+
+
+def test_party_cif_prefers_tax_scheme_over_reg_com():
+    # cac:PartyTaxScheme/cbc:CompanyID e CIF-ul; cac:PartyLegalEntity/cbc:CompanyID
+    # e numarul de la Registrul Comertului - nu trebuie confundate.
+    xml = b"""<?xml version="1.0"?>
+    <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+             xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+             xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+      <cbc:ID>1</cbc:ID>
+      <cbc:IssueDate>2026-01-01</cbc:IssueDate>
+      <cac:AccountingSupplierParty>
+        <cac:Party>
+          <cac:PartyLegalEntity>
+            <cbc:RegistrationName>Furnizor SRL</cbc:RegistrationName>
+            <cbc:CompanyID>J2007000673234</cbc:CompanyID>
+          </cac:PartyLegalEntity>
+          <cac:PartyTaxScheme>
+            <cbc:CompanyID>RO9378655</cbc:CompanyID>
+            <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+          </cac:PartyTaxScheme>
+        </cac:Party>
+      </cac:AccountingSupplierParty>
+      <cac:TaxTotal><cbc:TaxAmount>19.00</cbc:TaxAmount></cac:TaxTotal>
+      <cac:LegalMonetaryTotal>
+        <cbc:TaxExclusiveAmount>100.00</cbc:TaxExclusiveAmount>
+        <cbc:TaxInclusiveAmount>119.00</cbc:TaxInclusiveAmount>
+      </cac:LegalMonetaryTotal>
+      <cac:InvoiceLine>
+        <cbc:ID>1</cbc:ID>
+        <cbc:InvoicedQuantity>1</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount>100.00</cbc:LineExtensionAmount>
+        <cac:Item><cbc:Name>x</cbc:Name></cac:Item>
+      </cac:InvoiceLine>
+    </Invoice>"""
+    parsed = parse_invoice_xml(xml)
+    furnizor = next(p for p in parsed.parts if p.rol == "furnizor")
+    assert furnizor.cif_brut == "RO9378655"
+    assert furnizor.nr_reg_com == "J2007000673234"
+
+
+def test_party_cif_falls_back_to_reg_com_when_tax_scheme_missing():
+    xml = b"""<?xml version="1.0"?>
+    <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+             xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+             xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+      <cbc:ID>1</cbc:ID>
+      <cbc:IssueDate>2026-01-01</cbc:IssueDate>
+      <cac:AccountingSupplierParty>
+        <cac:Party>
+          <cac:PartyLegalEntity>
+            <cbc:RegistrationName>Furnizor SRL</cbc:RegistrationName>
+            <cbc:CompanyID>J2007000673234</cbc:CompanyID>
+          </cac:PartyLegalEntity>
+        </cac:Party>
+      </cac:AccountingSupplierParty>
+      <cac:TaxTotal><cbc:TaxAmount>19.00</cbc:TaxAmount></cac:TaxTotal>
+      <cac:LegalMonetaryTotal>
+        <cbc:TaxExclusiveAmount>100.00</cbc:TaxExclusiveAmount>
+        <cbc:TaxInclusiveAmount>119.00</cbc:TaxInclusiveAmount>
+      </cac:LegalMonetaryTotal>
+      <cac:InvoiceLine>
+        <cbc:ID>1</cbc:ID>
+        <cbc:InvoicedQuantity>1</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount>100.00</cbc:LineExtensionAmount>
+        <cac:Item><cbc:Name>x</cbc:Name></cac:Item>
+      </cac:InvoiceLine>
+    </Invoice>"""
+    parsed = parse_invoice_xml(xml)
+    furnizor = next(p for p in parsed.parts if p.rol == "furnizor")
+    assert furnizor.cif_brut == "J2007000673234"
+    assert furnizor.nr_reg_com == "J2007000673234"
 
 
 def test_parse_factura_normala_lines_and_tax_summary():

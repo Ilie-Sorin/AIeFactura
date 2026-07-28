@@ -33,7 +33,7 @@
       </cac:PartyTaxScheme>
       <cac:PartyLegalEntity>
         <cbc:RegistrationName>Furnizor Exemplu SRL</cbc:RegistrationName>
-        <cbc:CompanyID>185472901</cbc:CompanyID>
+        <cbc:CompanyID>J40/1234/2020</cbc:CompanyID>
       </cac:PartyLegalEntity>
       <cac:Contact>
         <cbc:Name>Departament Facturare</cbc:Name>
@@ -63,7 +63,7 @@
       </cac:PartyTaxScheme>
       <cac:PartyLegalEntity>
         <cbc:RegistrationName>Client Exemplu SA</cbc:RegistrationName>
-        <cbc:CompanyID>143981007</cbc:CompanyID>
+        <cbc:CompanyID>J12/567/2015</cbc:CompanyID>
       </cac:PartyLegalEntity>
     </cac:Party>
   </cac:AccountingCustomerParty>

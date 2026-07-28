@@ -2,14 +2,14 @@
 
 Algoritmul cifrei de control CUI (folosit și de ANAF): cele maxim 9 cifre ale
 părții numerice (fără cifra de control), completate la stânga cu zerouri până
-la 9 poziții, se înmulțesc cu cheia [7,5,3,2,1,7,4,1,9], se însumează, suma se
+la 9 poziții, se înmulțesc cu cheia [7,5,3,2,1,7,5,3,2], se însumează, suma se
 înmulțește cu 10 și se reduce modulo 11; dacă restul e 10, cifra de control e 0,
 altfel chiar restul.
 """
 
 import re
 
-_CONTROL_KEY = (7, 5, 3, 2, 1, 7, 4, 1, 9)
+_CONTROL_KEY = (7, 5, 3, 2, 1, 7, 5, 3, 2)
 
 
 def normalize_cif(raw: str | None) -> str | None:

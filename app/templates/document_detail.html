@@ -114,13 +114,14 @@
 <h2>Părți</h2>
 <div class="panel">
   <table>
-    <thead><tr><th>Rol</th><th>Denumire</th><th>CIF</th><th>Țară</th><th>Cont bancar</th></tr></thead>
+    <thead><tr><th>Rol</th><th>Denumire</th><th>CIF</th><th>Nr. Reg. Com.</th><th>Țară</th><th>Cont bancar</th></tr></thead>
     <tbody>
       {% for p in invoice.parts %}
       <tr>
         <td>{{ p.rol }}</td>
         <td>{{ p.denumire or "—" }}</td>
         <td>{{ p.cif_brut or "—" }}</td>
+        <td>{{ p.nr_reg_com or "—" }}</td>
         <td>{{ p.tara or "—" }}</td>
         <td>{{ p.cont_bancar or "—" }}</td>
       </tr>

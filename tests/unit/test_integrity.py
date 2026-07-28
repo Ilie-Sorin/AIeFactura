@@ -82,8 +82,8 @@ def test_small_rounding_within_tolerance_is_ok():
 
 
 def test_cif_valid_and_invalid():
-    assert check_cif_valid("185472901") is None
-    issue = check_cif_valid("185472900")
+    assert check_cif_valid("123456789") is None
+    issue = check_cif_valid("123456788")
     assert issue is not None
     assert issue.cod == "cif_invalid"
 
