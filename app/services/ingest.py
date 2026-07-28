@@ -173,19 +173,22 @@ def ingest_file(
         )
 
     xml_factura_member: tuple[bytes, str] | None = None
+    alte_surse: list[SourceObject] = []
     for continut, nume in members:
         tip = classify_xml_bytes(continut) if nume.lower().endswith(".xml") else "atasament"
         if tip == "xml_factura" and xml_factura_member is None:
             xml_factura_member = (continut, nume)
             continue
-        _store_source_object(
-            session,
-            batch.id,
-            tip,
-            continut,
-            nume_original=nume,
-            cale_originala=file.cale_originala,
-            mime=_mime_for(nume),
+        alte_surse.append(
+            _store_source_object(
+                session,
+                batch.id,
+                tip,
+                continut,
+                nume_original=nume,
+                cale_originala=file.cale_originala,
+                mime=_mime_for(nume),
+            )
         )
 
     if xml_factura_member is None:
@@ -278,6 +281,12 @@ def ingest_file(
                     batch_id=batch.id,
                 )
             )
+        for sursa in alte_surse:
+            session.add(
+                InvoiceSourceLink(
+                    invoice_id=dedup.existing_invoice_id, source_object_id=sursa.id, batch_id=batch.id
+                )
+            )
         _audit(
             session,
             "duplicat_detectat",
@@ -338,6 +347,12 @@ def ingest_file(
         # nu doar pentru sursele suplimentare de la duplicate.
         session.add(
             InvoiceSourceLink(invoice_id=invoice.id, source_object_id=zip_source.id, batch_id=batch.id)
+        )
+    for sursa in alte_surse:
+        # Semnatura ANAF (si orice alt membru necunoscut al arhivei) -- necesara
+        # pentru exportul cu structura de foldere (cap. 3).
+        session.add(
+            InvoiceSourceLink(invoice_id=invoice.id, source_object_id=sursa.id, batch_id=batch.id)
         )
 
     for p in parsed.parts:

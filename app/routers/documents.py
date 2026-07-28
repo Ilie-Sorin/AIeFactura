@@ -11,6 +11,7 @@ from app.models.document import Attachment, Invoice
 from app.models.ingestion import InvoiceSourceLink, SourceObject
 from app.security import require_login
 from app.services.audit import write_audit
+from app.services.export import build_document_export_zip
 from app.templating import templates
 
 router = APIRouter()
@@ -129,6 +130,28 @@ def document_zip(
         raise HTTPException(404, "Documentul nu provine dintr-o arhivă ZIP")
     return _download(
         db, link.source_object_id, user.id, f"{invoice.numar_normalizat}.zip", "application/zip"
+    )
+
+
+@router.get("/documente/{invoice_id}/export")
+def document_export(
+    invoice_id: int, db: Session = Depends(get_db), user: User = Depends(require_login)
+):
+    invoice = db.get(Invoice, invoice_id)
+    if invoice is None:
+        raise HTTPException(404, "Document inexistent")
+    continut = build_document_export_zip(db, invoice)
+    write_audit(
+        db, "export", utilizator_id=user.id, entitate="invoice", entitate_id=invoice.id,
+        detalii={"tip": "zip_document"},
+    )
+    db.commit()
+    return Response(
+        content=continut,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="export_{invoice.numar_normalizat}.zip"'
+        },
     )
 
 

@@ -3,9 +3,39 @@
 {% block content %}
 <h1>Registru</h1>
 
-<form class="search-bar" method="get" action="/registru">
-  <input type="text" name="q" value="{{ q }}" placeholder="Număr, CIF, denumire, descriere linie, contract, comandă, ID ANAF...">
-  <button type="submit">Caută</button>
+<form method="get" action="/registru">
+  <div class="search-bar">
+    <input type="text" name="q" value="{{ q }}" placeholder="Număr, CIF, denumire, descriere linie, contract, comandă, ID ANAF...">
+    <button type="submit">Caută</button>
+    <button type="submit" formaction="/registru/export.xlsx" class="secondary" title="Exportă Excel pentru rezultatele curente">Export Excel</button>
+    <button type="submit" formaction="/registru/export.zip" class="secondary" title="Exportă ZIP (structură de foldere) pentru rezultatele curente">Export ZIP</button>
+  </div>
+
+  <details {% if data_de or data_pana or suma_de or suma_pana or cif or stare or directie %}open{% endif %}>
+    <summary style="cursor:pointer; color:var(--muted); font-size:13px; margin-bottom:10px">Căutare avansată</summary>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px">
+      <div><label for="data_de">Dată de la</label><input type="date" id="data_de" name="data_de" value="{{ data_de }}"></div>
+      <div><label for="data_pana">Dată până la</label><input type="date" id="data_pana" name="data_pana" value="{{ data_pana }}"></div>
+      <div><label for="suma_de">Total de la</label><input type="text" id="suma_de" name="suma_de" value="{{ suma_de }}" style="width:110px"></div>
+      <div><label for="suma_pana">Total până la</label><input type="text" id="suma_pana" name="suma_pana" value="{{ suma_pana }}" style="width:110px"></div>
+      <div><label for="cif">CIF (emitent sau beneficiar)</label><input type="text" id="cif" name="cif" value="{{ cif }}" style="width:140px"></div>
+      <div><label for="stare">Stare</label>
+        <select id="stare" name="stare">
+          <option value="">(toate)</option>
+          {% for s in ["primit", "parsat", "normalizat", "validat", "indexat", "eroare"] %}
+          <option value="{{ s }}" {% if stare == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div><label for="directie">Direcție</label>
+        <select id="directie" name="directie">
+          <option value="">(toate)</option>
+          <option value="intrare" {% if directie == "intrare" %}selected{% endif %}>intrare</option>
+          <option value="iesire" {% if directie == "iesire" %}selected{% endif %}>iesire</option>
+        </select>
+      </div>
+    </div>
+  </details>
 </form>
 
 <div class="panel">
