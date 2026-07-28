@@ -9,6 +9,11 @@ reconciliere, monitorizare/alertare, export, vizualizare, căutare avansată.
 Singura piesă rămasă neimplementată e sincronizarea ANAF (etapa 3) — vezi
 „Ce urmează" mai jos.
 
+## Depozit
+
+Cod sursă: [github.com/Ilie-Sorin/AIeFactura](https://github.com/Ilie-Sorin/AIeFactura)
+(`origin`, branch principal `master`).
+
 ## Stack
 
 FastAPI + uvicorn, PostgreSQL, SQLAlchemy 2.x + Alembic, lxml, Jinja2 + htmx
