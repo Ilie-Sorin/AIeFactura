@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     integrity_check_interval_minutes: int = 60
     alerta_scanare_zile: int = 3
 
+    # Stylesheet-ul XSLT oficial ANAF pentru vizualizarea RO-CIUS -- fisier
+    # extern, NU distribuit in acest repo (vezi app/resources/README.md).
+    anaf_stylesheet_path: str = "./app/resources/anaf_stylesheet.xsl"
+
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_from: str = ""

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,7 @@ from app.models.ingestion import InvoiceSourceLink, SourceObject
 from app.security import require_login
 from app.services.audit import write_audit
 from app.services.export import build_document_export_zip
+from app.services.pdf import DocumentRenderError, StylesheetMissingError, render_invoice_html
 from app.templating import templates
 
 router = APIRouter()
@@ -112,6 +113,33 @@ def document_xml(
     return _download(
         db, invoice.source_object_id, user.id, f"{invoice.numar_normalizat}.xml", "application/xml"
     )
+
+
+@router.get("/documente/{invoice_id}/vizualizare", response_class=HTMLResponse)
+def document_view(
+    invoice_id: int, db: Session = Depends(get_db), user: User = Depends(require_login)
+):
+    invoice = db.get(Invoice, invoice_id)
+    if invoice is None:
+        raise HTTPException(404, "Document inexistent")
+    xml_source = db.get(SourceObject, invoice.source_object_id)
+    if xml_source is None:
+        raise HTTPException(404, "XML sursă inexistent")
+
+    try:
+        html = render_invoice_html(xml_source.continut)
+    except StylesheetMissingError as exc:
+        return HTMLResponse(
+            "<p style='font-family:sans-serif; max-width:640px; margin:40px auto'>"
+            f"{exc}</p>",
+            status_code=200,
+        )
+    except DocumentRenderError as exc:
+        raise HTTPException(500, str(exc)) from exc
+
+    write_audit(db, "vizualizare", utilizator_id=user.id, entitate="invoice", entitate_id=invoice.id)
+    db.commit()
+    return HTMLResponse(content=html)
 
 
 @router.get("/documente/{invoice_id}/zip")
