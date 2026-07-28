@@ -1,6 +1,6 @@
 import datetime as dt
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,4 +18,4 @@ class NumberingRule(Base):
     descriere: Mapped[str | None] = mapped_column(String(255), nullable=True)
     configuratie: Mapped[dict] = mapped_column(JSONB, default=dict)
     activa: Mapped[bool] = mapped_column(Boolean, default=True)
-    creat_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
+    creat_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))

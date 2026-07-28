@@ -30,7 +30,13 @@
           {% else %}<span class="badge badge-neutru">info</span>{% endif %}
         </td>
         <td>{{ a.cod }}</td>
-        <td>{{ a.mesaj }}</td>
+        <td>
+          {% if a.detalii and a.detalii.invoice_id %}
+          <a href="/documente/{{ a.detalii.invoice_id }}">{{ a.mesaj }}</a>
+          {% else %}
+          {{ a.mesaj }}
+          {% endif %}
+        </td>
         <td>{{ a.generat_la }}</td>
         {% if user.rol == "administrator" %}
         <td>

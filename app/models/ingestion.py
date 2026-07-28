@@ -8,6 +8,7 @@ from sqlalchemy import (
     LargeBinary,
     String,
     Text,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -29,7 +30,7 @@ class ImportBatch(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     tip: Mapped[str] = mapped_column(String(20))
     sursa: Mapped[str | None] = mapped_column(Text, nullable=True)
-    pornit_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
+    pornit_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
     terminat_la: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     stare: Mapped[str] = mapped_column(String(20), default=BatchStatus.IN_CURS)
     utilizator_id: Mapped[int | None] = mapped_column(ForeignKey("app_user.id"), nullable=True)
@@ -65,7 +66,7 @@ class SourceObject(Base):
     # devine un scan secvential care incetineste pe masura ce tabela creste
     # (confirmat pe date reale, ~10.000 fisiere).
     cale_originala: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
-    creat_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
+    creat_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
 
     batch: Mapped["ImportBatch"] = relationship(back_populates="source_objects")
 
@@ -96,4 +97,4 @@ class InvoiceSourceLink(Base):
     invoice_id: Mapped[int] = mapped_column(ForeignKey("invoice.id"), index=True)
     source_object_id: Mapped[int] = mapped_column(ForeignKey("source_object.id"))
     batch_id: Mapped[int] = mapped_column(ForeignKey("import_batch.id"))
-    creat_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
+    creat_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))

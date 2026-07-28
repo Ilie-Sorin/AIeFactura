@@ -13,6 +13,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -87,7 +88,7 @@ class Invoice(Base):
     retras_la: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     retras_motiv: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    creat_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
+    creat_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
 
     parts: Mapped[list["InvoiceParty"]] = relationship(back_populates="invoice", cascade="all, delete-orphan")
     lines: Mapped[list["InvoiceLine"]] = relationship(back_populates="invoice", cascade="all, delete-orphan")

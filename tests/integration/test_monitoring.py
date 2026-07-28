@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 
 from app.models.consolidation import InvoiceRelation
-from app.models.document import Invoice, InvoiceLine
+from app.models.document import Invoice, InvoiceLine, InvoiceParty
 from app.models.ingestion import ImportBatch, SourceObject
 from app.models.monitoring import IntegrityAlert
 from app.security import create_user
@@ -111,6 +111,17 @@ def test_invalid_cif_detected_for_emitent_and_beneficiar(db_session):
     assert len(findings) == 1
     roluri = {i["rol"] for i in findings[0].detalii["invalide"]}
     assert roluri == {"emitent", "beneficiar"}
+
+
+def test_orphan_storno_message_shows_partner_name_not_raw_cif(db_session):
+    storno, _ = _make_invoice(db_session, numar="9", numar_numeric=9, tip_document="381")
+    db_session.add(InvoiceParty(invoice_id=storno.id, rol="furnizor", denumire="Furnizor Exemplu SRL"))
+    db_session.flush()
+
+    findings = check_orphan_storno(db_session)
+    assert len(findings) == 1
+    assert "Furnizor Exemplu SRL" in findings[0].mesaj
+    assert "185472901" not in findings[0].mesaj
 
 
 def test_orphan_storno_flagged_until_linked(db_session):

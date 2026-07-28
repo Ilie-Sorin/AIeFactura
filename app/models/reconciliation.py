@@ -1,7 +1,7 @@
 import datetime as dt
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -57,7 +57,7 @@ class ReconciliationRun(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     rule_id: Mapped[int] = mapped_column(ForeignKey("reconciliation_rule.id"), index=True)
-    rulat_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
+    rulat_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
     nr_potriviri: Mapped[int] = mapped_column(Integer, default=0)
     nr_exceptii: Mapped[int] = mapped_column(Integer, default=0)
     nr_ambigue: Mapped[int] = mapped_column(Integer, default=0)

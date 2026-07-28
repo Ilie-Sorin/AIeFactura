@@ -26,10 +26,22 @@ def _already_seen(session: Session, cale_originala: str) -> bool:
 
 
 def find_candidate_files(root: Path) -> list[Path]:
+    """Fișierele XML de sine stătătoare care au un ZIP soră cu același nume
+    (același folder, aceeași bază de nume) sunt ignorate: exemplarul original
+    al e-facturii e ZIP-ul (conține și sigiliul MF), iar unele unelte de
+    descărcare mai lasă și o copie extrasă a XML-ului lângă el -- copie care
+    s-a dovedit uneori corupt la nivel de encoding (octeți invalizi UTF-8 pe
+    caractere speciale în denumiri de articole), spre deosebire de XML-ul din
+    interiorul arhivei. Cum ".xml" < ".zip" alfabetic, copia ar câștiga
+    cursa de deduplicare dacă n-ar fi filtrată aici."""
     if not root.exists():
         return []
+    toate = [p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in EXTENSII_ACCEPTATE]
+    zip_stems = {(p.parent, p.stem) for p in toate if p.suffix.lower() == ".zip"}
     return sorted(
-        p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in EXTENSII_ACCEPTATE
+        p
+        for p in toate
+        if not (p.suffix.lower() == ".xml" and (p.parent, p.stem) in zip_stems)
     )
 
 

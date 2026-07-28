@@ -52,8 +52,14 @@
       <tr>
         <td>{{ d.directie }}</td>
         <td><a href="/documente/{{ d.id }}">{{ d.numar_brut }}</a></td>
-        <td title="CIF {{ d.cif_emitent }}">{{ d.nume_furnizor or d.cif_emitent }}</td>
-        <td title="{{ 'CIF ' + d.cif_beneficiar if d.cif_beneficiar else '' }}">{{ d.nume_client or d.cif_beneficiar or "—" }}</td>
+        <td>
+          {{ d.nume_furnizor or d.cif_emitent }}
+          {% if d.nume_furnizor and d.cif_emitent %}<br><span style="color:var(--muted); font-size:11px">CIF {{ d.cif_emitent }}</span>{% endif %}
+        </td>
+        <td>
+          {{ d.nume_client or d.cif_beneficiar or "—" }}
+          {% if d.nume_client and d.cif_beneficiar %}<br><span style="color:var(--muted); font-size:11px">CIF {{ d.cif_beneficiar }}</span>{% endif %}
+        </td>
         <td>{{ d.data_emitere }}</td>
         <td>{{ "%.2f"|format(d.total_document) }} {{ d.moneda }}</td>
         <td>

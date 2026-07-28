@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
 from app.models.consolidation import InvoiceRelation
@@ -33,6 +33,13 @@ CATEGORII_COTA_ZERO = {"Z", "E", "G", "O"}
 
 def _now() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
+
+
+def _furnizor_denumire(invoice: Invoice) -> str:
+    """Nume lizibil pentru mesajele de alertă -- CIF-ul brut nu spune nimic
+    utilizatorului. Necesită `invoice.parts` deja încărcat (selectinload)."""
+    denumire = next((p.denumire for p in invoice.parts if p.rol == "furnizor" and p.denumire), None)
+    return denumire or invoice.cif_emitent
 
 
 @dataclass
@@ -122,13 +129,15 @@ def check_document_integrity(session: Session) -> list[Finding]:
     """Suprafață alertă pentru documentele deja marcate `stare='eroare'` la
     ingestie (tripla verificare sumă linii/total/TVA, CIF) — cap. 8 cere ca
     astea să devină alerte active, nu doar rânduri de răsfoit în registru."""
-    invoices = session.scalars(select(Invoice).where(Invoice.stare == "eroare")).all()
+    invoices = session.scalars(
+        select(Invoice).options(selectinload(Invoice.parts)).where(Invoice.stare == "eroare")
+    ).all()
     return [
         Finding(
             cod="integritate_document",
             nivel="avertisment",
             cheie=f"invoice={inv.id}",
-            mesaj=f"Documentul {inv.numar_brut} ({inv.cif_emitent}) are o eroare de integritate: {inv.eroare_mesaj}",
+            mesaj=f"Documentul {inv.numar_brut} ({_furnizor_denumire(inv)}) are o eroare de integritate: {inv.eroare_mesaj}",
             detalii={"invoice_id": inv.id, "eroare_detalii": inv.eroare_detalii},
         )
         for inv in invoices
@@ -197,7 +206,9 @@ def check_invalid_cif(session: Session) -> list[Finding]:
 def check_orphan_storno(session: Session) -> list[Finding]:
     """Storno fără document de referință — nicio legătură (explicită sau
     dedusă) către o factură stornată."""
-    stornouri = session.scalars(select(Invoice).where(Invoice.tip_document == "381")).all()
+    stornouri = session.scalars(
+        select(Invoice).options(selectinload(Invoice.parts)).where(Invoice.tip_document == "381")
+    ).all()
     if not stornouri:
         return []
     ids = [s.id for s in stornouri]
@@ -214,7 +225,7 @@ def check_orphan_storno(session: Session) -> list[Finding]:
             cod="storno_orfan",
             nivel="avertisment",
             cheie=f"invoice={s.id}",
-            mesaj=f"Document de tip credit ({s.numar_brut}, {s.cif_emitent}) fără nicio legătură către factura stornată.",
+            mesaj=f"Document de tip credit {s.numar_brut} ({_furnizor_denumire(s)}) fără nicio legătură către factura stornată.",
             detalii={"invoice_id": s.id},
         )
         for s in stornouri

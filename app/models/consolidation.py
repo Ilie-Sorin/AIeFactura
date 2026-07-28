@@ -2,7 +2,7 @@ import datetime as dt
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, SmallInteger, String, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, SmallInteger, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -30,7 +30,7 @@ class InvoiceRelation(Base):
     stare: Mapped[str] = mapped_column(String(15), default="propusa")
     motiv: Mapped[str | None] = mapped_column(Text, nullable=True)
     utilizator_id: Mapped[int | None] = mapped_column(ForeignKey("app_user.id"), nullable=True)
-    creat_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
+    creat_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
 
 
 class InvoiceGroup(Base):
