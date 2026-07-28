@@ -2,6 +2,7 @@ import datetime as dt
 from decimal import Decimal
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     Computed,
     Date,
@@ -50,7 +51,9 @@ class Invoice(Base):
     numar_brut: Mapped[str] = mapped_column(String(100))
     numar_normalizat: Mapped[str] = mapped_column(String(100), index=True)
     serie: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    numar_numeric: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # BigInteger, nu Integer: numere de factura reale (secvente ERP) pot depasi
+    # 2,147,483,647 -- am vazut asta cu date reale (ex. "6030066180").
+    numar_numeric: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     data_emitere: Mapped[dt.date] = mapped_column(Date, index=True)
     data_scadenta: Mapped[dt.date | None] = mapped_column(Date, nullable=True)

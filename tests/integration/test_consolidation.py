@@ -2,6 +2,7 @@
 ca unitate de lucru, relații explicite (inclusiv întârziate) și deduse care
 nu ating gruparea decât după confirmare umană."""
 
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -9,7 +10,12 @@ from sqlalchemy import select
 
 from app.models.consolidation import InvoiceGroup, InvoiceGroupMember, InvoiceRelation
 from app.models.document import Invoice
-from app.services.consolidation import decide_relation, propose_deduced_relations
+from app.models.ingestion import SourceObject
+from app.services.consolidation import (
+    decide_relation,
+    propose_deduced_relations,
+    resolve_pending_references_for_suppliers,
+)
 from app.services.ingest import IngestFile, finish_batch, ingest_file, start_batch
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
@@ -54,7 +60,11 @@ def test_storno_pair_produces_group_with_correct_net_position(db_session_commit)
 
 def test_reversed_import_order_resolves_pending_reference(db_session_commit):
     """Storno-ul soseste INAINTEA facturii pe care o referentiaza -- relatia
-    nu se poate crea imediat, dar se rezolva quand originalul e importat."""
+    nu se poate crea imediat (consolidate_invoice nu mai reincearca automat
+    referintele intarziate ale ALTOR facturi la fiecare ingestie -- ar fi
+    O(n^2) pe lot, cf. resolve_pending_references_for_suppliers), dar se
+    rezolva la finalul lotului (scanner/upload apeleaza explicit functia,
+    o singura data per furnizor)."""
     session = db_session_commit
     batch = start_batch(session, tip="scan_local", sursa="test")
     r_storno = _ingest(session, batch, "factura_storno.xml")
@@ -64,13 +74,23 @@ def test_reversed_import_order_resolves_pending_reference(db_session_commit):
     assert len(_group_of(session, r_storno.invoice_id).members) == 1
 
     r_normala = _ingest(session, batch, "factura_normala.xml")
+    resolve_pending_references_for_suppliers(session, {"185472901"})
     finish_batch(session, batch)
     session.commit()
 
-    relatie = session.scalar(select(InvoiceRelation))
-    assert relatie is not None
+    toate_relatiile = session.scalars(select(InvoiceRelation)).all()
+    # Facturile astea au si valoare egala + tip complementar, deci
+    # propose_deduced_relations() ar propune independent un "storno_dedus" --
+    # trebuie sa ramana O SINGURA relatie, cea explicita din XML (regresie:
+    # o propunere dedusa creata prima, in timpul ingestiei normale, bloca
+    # anterior confirmarea automata a aceleiasi perechi din XML).
+    assert len(toate_relatiile) == 1
+    relatie = toate_relatiile[0]
     assert relatie.invoice_from == r_storno.invoice_id
     assert relatie.invoice_to == r_normala.invoice_id
+    assert relatie.tip == "storno"
+    assert relatie.sursa == "xml"
+    assert relatie.stare == "confirmata"
 
     grup = _group_of(session, r_normala.invoice_id)
     assert _group_of(session, r_storno.invoice_id).id == grup.id
@@ -154,3 +174,139 @@ def test_manual_rejection_survives_rule_rerun(db_session_commit):
 
     # grupurile raman separate
     assert _group_of(session, r_a.invoice_id).id != _group_of(session, r_b.invoice_id).id
+
+
+def _make_minimal_invoice(session, batch, *, numar, nr_comanda=None, cif="185472901"):
+    source = SourceObject(
+        batch_id=batch.id, tip="xml_factura", continut=b"<x/>", sha256=numar.zfill(64), marime=4
+    )
+    session.add(source)
+    session.flush()
+    invoice = Invoice(
+        batch_id=batch.id,
+        source_object_id=source.id,
+        directie="intrare",
+        cif_emitent=cif,
+        numar_brut=numar,
+        numar_normalizat=numar,
+        nr_comanda=nr_comanda,
+        tip_document="380",
+        data_emitere=date(2026, 1, 1),
+        total_fara_tva=Decimal("100.00"),
+        total_tva=Decimal("0.00"),
+        total_document=Decimal("100.00"),
+        stare="indexat",
+    )
+    session.add(invoice)
+    session.flush()
+    return invoice
+
+
+def test_deduced_relation_skips_overly_common_order_number(db_session_commit):
+    """Regresie: un nr_comanda placeholder repetat la zeci de facturi ale
+    aceluiași furnizor (date reale: "1" la 197 facturi) nu trebuie să
+    genereze O(n²) propuneri de relație -- e zgomot, nu un corelator real,
+    și a dus la un import de ore pe ~5000 documente reale."""
+    session = db_session_commit
+    batch = start_batch(session, tip="scan_local", sursa="test-comanda-comuna")
+
+    facturi = [
+        _make_minimal_invoice(session, batch, numar=f"{i:04d}", nr_comanda="1") for i in range(25)
+    ]
+    session.commit()
+
+    propuneri = propose_deduced_relations(session, facturi[-1])
+    session.commit()
+
+    assert propuneri == []
+    assert session.scalar(select(InvoiceRelation)) is None
+
+
+def test_deduced_relation_still_works_below_the_cap(db_session_commit):
+    session = db_session_commit
+    batch = start_batch(session, tip="scan_local", sursa="test-comanda-normala")
+
+    facturi = [
+        _make_minimal_invoice(session, batch, numar=f"{i:04d}", nr_comanda="CMD-42") for i in range(3)
+    ]
+    session.commit()
+
+    propuneri = propose_deduced_relations(session, facturi[-1])
+    session.commit()
+
+    assert len(propuneri) == 2
+    assert all(p.tip == "comanda_comuna" for p in propuneri)
+
+
+def test_explicit_xml_relation_replaces_earlier_deduced_proposal(db_session_commit):
+    """O propunere DEDUSĂ (creată prima, doar din întâmplarea ordinii de
+    procesare) nu trebuie să blocheze o relație EXPLICITĂ din XML pentru
+    aceeași pereche -- faptul cert câștigă, nu presupunerea, indiferent de
+    ordine (regresie reală: aceleași facturi cu valoare egală ȘI referință
+    explicită, deducerea câștiga cursa dacă rula prima)."""
+    from app.services.consolidation import resolve_explicit_relations
+
+    session = db_session_commit
+    batch = start_batch(session, tip="scan_local", sursa="test-prioritate")
+
+    original = _make_minimal_invoice(session, batch, numar="1000")
+    storno = _make_minimal_invoice(session, batch, numar="2000")
+    storno.tip_document = "381"
+    storno.referinte_xml = [{"tip": "storno", "valoare": "1000", "xpath": None}]
+    session.flush()
+
+    # ordinea "proasta": intai se propune deducerea (storno_dedus)...
+    propuneri = propose_deduced_relations(session, storno)
+    assert len(propuneri) == 1
+    assert propuneri[0].sursa == "regula"
+    assert propuneri[0].stare == "propusa"
+
+    # ...abia apoi se rezolva referinta explicita din XML pentru aceeasi pereche
+    explicite = resolve_explicit_relations(session, storno)
+    assert len(explicite) == 1
+    assert explicite[0].sursa == "xml"
+
+    toate = session.scalars(select(InvoiceRelation)).all()
+    assert len(toate) == 1  # propunerea slaba a fost inlocuita, nu dublata
+    assert toate[0].sursa == "xml"
+    assert toate[0].stare == "confirmata"
+
+
+def test_human_decision_still_blocks_explicit_relation(db_session_commit):
+    """Spre deosebire de o propunere neatinsa, o relatie deja decisa de un OM
+    (utilizator_id populat) tot nu trebuie inlocuita de nimic automat."""
+    from app.services.consolidation import resolve_explicit_relations
+
+    session = db_session_commit
+    batch = start_batch(session, tip="scan_local", sursa="test-decizie-umana")
+
+    original = _make_minimal_invoice(session, batch, numar="1000")
+    storno = _make_minimal_invoice(session, batch, numar="2000")
+    storno.tip_document = "381"
+    storno.referinte_xml = [{"tip": "storno", "valoare": "1000", "xpath": None}]
+    session.flush()
+
+    from app.security import create_user
+
+    utilizator = create_user(session, "revizor-relatii", "parola123")
+    session.flush()
+
+    session.add(
+        InvoiceRelation(
+            invoice_from=storno.id,
+            invoice_to=original.id,
+            tip="storno_dedus",
+            sursa="regula",
+            stare="respinsa",
+            motiv="verificat manual, nu sunt legate",
+            utilizator_id=utilizator.id,
+        )
+    )
+    session.flush()
+
+    explicite = resolve_explicit_relations(session, storno)
+    assert explicite == []
+
+    toate = session.scalars(select(InvoiceRelation)).all()
+    assert len(toate) == 1
+    assert toate[0].stare == "respinsa"

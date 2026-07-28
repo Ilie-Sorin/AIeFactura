@@ -60,7 +60,11 @@ class SourceObject(Base):
     marime: Mapped[int] = mapped_column(Integer)
     mime: Mapped[str | None] = mapped_column(String(100), nullable=True)
     nume_original: Mapped[str | None] = mapped_column(Text, nullable=True)
-    cale_originala: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Indexat: scanner-ul verifica "am mai vazut aceasta cale?" pentru FIECARE
+    # fisier candidat la fiecare scanare (cap. 4A) -- fara index, verificarea
+    # devine un scan secvential care incetineste pe masura ce tabela creste
+    # (confirmat pe date reale, ~10.000 fisiere).
+    cale_originala: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
     creat_la: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
 
     batch: Mapped["ImportBatch"] = relationship(back_populates="source_objects")

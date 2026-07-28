@@ -12,7 +12,8 @@ from app.models.auth import User
 from app.models.document import Invoice
 from app.models.ingestion import ImportBatch
 from app.security import require_admin, require_login
-from app.services.ingest import IngestFile, cancel_batch, finish_batch, ingest_file, start_batch
+from app.services.consolidation import resolve_pending_references_for_suppliers
+from app.services.ingest import IngestFile, cancel_batch, finish_batch, safe_ingest_file, start_batch
 from app.services.scanner import scan_directory
 from app.templating import templates
 
@@ -63,10 +64,15 @@ async def upload_files(
     batch = start_batch(db, tip="scan_local", sursa="upload manual", utilizator_id=user.id)
     for f in fisiere:
         continut = await f.read()
-        ingest_file(
+        safe_ingest_file(
             db, batch, IngestFile(continut=continut, nume_original=f.filename or "fisier"),
             utilizator_id=user.id,
         )
+    furnizori_atinsi = set(
+        db.scalars(select(Invoice.cif_emitent).where(Invoice.batch_id == batch.id).distinct()).all()
+    )
+    if furnizori_atinsi:
+        resolve_pending_references_for_suppliers(db, furnizori_atinsi)
     finish_batch(db, batch)
     db.commit()
     return RedirectResponse(url=f"/importuri/{batch.id}", status_code=303)

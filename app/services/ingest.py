@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -13,6 +14,8 @@ from io import BytesIO
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.config import get_settings
 from app.models.consolidation import InvoiceGroup, InvoiceGroupMember, InvoiceRelation
@@ -442,6 +445,37 @@ def ingest_file(
     consolidate_invoice(session, invoice)
 
     return FileResult(xml_nume, "importat", invoice_id=invoice.id, mesaj=eroare_mesaj)
+
+
+def safe_ingest_file(
+    session: Session, batch: ImportBatch, file: IngestFile, *, utilizator_id: int | None = None
+) -> FileResult:
+    """Ca `ingest_file`, dar izolează orice eroare NEAȘTEPTATĂ (bug, limită de
+    bază de date, etc. — nu doar XML nevalid/CIF lipsă, deja gestionate de
+    `ingest_file` fără să arunce) într-un SAVEPOINT, ca un singur fișier
+    problematic să nu oprească — sau să anuleze — restul lotului (cap. 4A).
+    Scanner-ul și upload-ul manual trebuie să folosească asta, nu
+    `ingest_file` direct, pentru un lot de sute/mii de fișiere reale."""
+    try:
+        with session.begin_nested():
+            return ingest_file(session, batch, file, utilizator_id=utilizator_id)
+    except Exception as exc:
+        # SAVEPOINT-ul de mai sus a anulat deja orice scriere partiala a
+        # acestui fisier (inclusiv modificarile facute pe `batch` in memorie,
+        # pe care SQLAlchemy le restaureaza la starea dinaintea blocului) --
+        # de-aia contoarele se actualizeaza aici, nu in ingest_file.
+        batch.nr_fisiere += 1
+        batch.nr_erori += 1
+        _audit(
+            session,
+            "eroare_neasteptata",
+            entitate="import_batch",
+            entitate_id=batch.id,
+            detalii={"fisier": file.nume_original, "eroare": str(exc)},
+            utilizator_id=utilizator_id,
+        )
+        logger.exception("eroare neașteptată la ingestia fișierului %s", file.nume_original)
+        return FileResult(file.nume_original, "eroare", mesaj=f"eroare neașteptată: {exc}")
 
 
 def finish_batch(session: Session, batch: ImportBatch) -> None:

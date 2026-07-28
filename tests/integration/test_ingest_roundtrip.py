@@ -9,7 +9,14 @@ from sqlalchemy import func, select
 
 from app.models.document import Invoice, InvoiceLine
 from app.models.ingestion import ImportBatch, InvoiceSourceLink, SourceObject
-from app.services.ingest import IngestFile, cancel_batch, finish_batch, ingest_file, start_batch
+from app.services.ingest import (
+    IngestFile,
+    cancel_batch,
+    finish_batch,
+    ingest_file,
+    safe_ingest_file,
+    start_batch,
+)
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
 
@@ -107,3 +114,61 @@ def test_line_sum_mismatch_is_imported_with_stare_eroare(db_session_commit):
     assert invoice.eroare_detalii is not None
     # documentul tot exista cu toate liniile lui, in ciuda neconcordantei
     assert len(invoice.lines) == 1
+
+
+def test_large_invoice_number_does_not_overflow(db_session_commit):
+    """Regresie: numere de factura reale (secvente ERP) pot avea 10+ cifre,
+    peste limita INTEGER pe 32 de biti a Postgres -- numar_numeric e
+    BigInteger (a picat cu 'integer out of range' pe date reale)."""
+    session = db_session_commit
+    batch = start_batch(session, tip="scan_local", sursa="test-numar-mare")
+    rezultat = ingest_file(
+        session, batch, IngestFile(_read("factura_numar_mare.xml"), "factura_numar_mare.xml")
+    )
+    finish_batch(session, batch)
+    session.commit()
+
+    assert rezultat.stare == "importat"
+    invoice = session.get(Invoice, rezultat.invoice_id)
+    assert invoice.numar_numeric == 6030066180
+
+
+def test_safe_ingest_file_isolates_unexpected_errors_per_file(db_session_commit, monkeypatch):
+    """O eroare NEAȘTEPTATĂ (nu doar XML nevalid/CIF lipsă, deja gestionate
+    fără să arunce) la un singur fișier nu trebuie să oprească sau să
+    anuleze restul lotului -- regresie după un caz real în care o eroare de
+    baza de date la un fișier a picat întreaga cerere de scanare, fără să
+    păstreze fișierele deja procesate cu succes înaintea lui."""
+    import app.services.ingest as ingest_module
+
+    original_consolidate = ingest_module.consolidate_invoice
+
+    def _boom(session, invoice):
+        if invoice.numar_brut == "0000182":  # doar factura_storno.xml
+            raise RuntimeError("eroare neașteptată simulată")
+        return original_consolidate(session, invoice)
+
+    monkeypatch.setattr(ingest_module, "consolidate_invoice", _boom)
+
+    session = db_session_commit
+    batch = start_batch(session, tip="scan_local", sursa="test-eroare-neasteptata")
+
+    r1 = safe_ingest_file(session, batch, IngestFile(_read("factura_normala.xml"), "factura_normala.xml"))
+    r2 = safe_ingest_file(session, batch, IngestFile(_read("factura_storno.xml"), "factura_storno.xml"))
+    r3 = safe_ingest_file(session, batch, IngestFile(_read("factura_corectata.xml"), "factura_corectata.xml"))
+    finish_batch(session, batch)
+    session.commit()
+
+    assert r1.stare == "importat"
+    assert r2.stare == "eroare"
+    assert "eroare neașteptată" in r2.mesaj
+    assert r3.stare == "importat"
+
+    assert batch.nr_erori == 1
+    assert batch.nr_fisiere == 3
+
+    # fisierul care a picat NU a lasat un rand Invoice orfan -- SAVEPOINT-ul
+    # i-a anulat scrierile, desi apucase deja sa insereze invoice+linii+parti
+    # inainte de eroarea simulata din consolidare.
+    numere = {i.numar_brut for i in session.scalars(select(Invoice)).all()}
+    assert numere == {"0001234", "0000183"}
