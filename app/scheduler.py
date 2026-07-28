@@ -11,6 +11,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.config import get_settings
 from app.db import SessionLocal
+from app.services.alerting import run_checks_and_notify
 from app.services.scanner import scan_directory
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,20 @@ def _run_watch_scan() -> None:
             session.close()
 
 
+def _run_integrity_checks() -> None:
+    session = SessionLocal()
+    try:
+        status = run_checks_and_notify(session)
+        session.commit()
+        if status["stare"] != "ok":
+            logger.warning("verificări de integritate: %s", status["alerte_deschise"])
+    except Exception:
+        session.rollback()
+        logger.exception("verificările de completitudine/integritate au eșuat")
+    finally:
+        session.close()
+
+
 def start_scheduler(interval_minutes: int = 5) -> BackgroundScheduler:
     global _scheduler
     if _scheduler is not None:
@@ -48,6 +63,13 @@ def start_scheduler(interval_minutes: int = 5) -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone="UTC")
     scheduler.add_job(
         _run_watch_scan, "interval", minutes=interval_minutes, id="watch_scan", replace_existing=True
+    )
+    scheduler.add_job(
+        _run_integrity_checks,
+        "interval",
+        minutes=settings.integrity_check_interval_minutes,
+        id="integrity_checks",
+        replace_existing=True,
     )
     scheduler.start()
     _scheduler = scheduler

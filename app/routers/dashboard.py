@@ -6,6 +6,7 @@ from app.db import get_db
 from app.models.auth import User
 from app.models.document import Invoice
 from app.models.ingestion import ImportBatch
+from app.models.monitoring import IntegrityAlert
 from app.security import require_login
 from app.templating import templates
 
@@ -25,6 +26,12 @@ def dashboard(
     loturi_recente = db.scalars(
         select(ImportBatch).order_by(ImportBatch.pornit_la.desc()).limit(10)
     ).all()
+    alerte_deschise = db.scalars(
+        select(IntegrityAlert)
+        .where(IntegrityAlert.rezolvat_la.is_(None))
+        .order_by(IntegrityAlert.nivel.desc(), IntegrityAlert.generat_la.desc())
+        .limit(20)
+    ).all()
 
     total_documente = db.scalar(select(func.count()).select_from(Invoice))
     total_erori = db.scalar(
@@ -39,6 +46,7 @@ def dashboard(
             "documente_noi": documente_noi,
             "documente_eroare": documente_eroare,
             "loturi_recente": loturi_recente,
+            "alerte_deschise": alerte_deschise,
             "total_documente": total_documente,
             "total_erori": total_erori,
         },

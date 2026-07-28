@@ -16,6 +16,7 @@ from app.routers import (
     documents,
     groups,
     imports,
+    monitoring,
     reconciliation,
     registry,
     relations,
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
     app.include_router(groups.router)
     app.include_router(relations.router)
     app.include_router(reconciliation.router)
+    app.include_router(monitoring.router)
     app.include_router(imports.router)
     app.include_router(admin.router)
 

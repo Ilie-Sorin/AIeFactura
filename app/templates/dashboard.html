@@ -6,6 +6,46 @@
 <div class="stat-row">
   <div class="stat"><div class="value">{{ total_documente }}</div><div class="label">documente în registru</div></div>
   <div class="stat"><div class="value">{{ total_erori }}</div><div class="label">documente cu erori</div></div>
+  <div class="stat"><div class="value">{{ alerte_deschise|length }}</div><div class="label">alerte deschise</div></div>
+</div>
+
+<div class="panel">
+  <div style="display:flex; justify-content:space-between; align-items:center">
+    <h2 style="margin-top:0">Alerte de completitudine și integritate</h2>
+    {% if user.rol == "administrator" %}
+    <form method="post" action="/monitorizare/ruleaza">
+      <button type="submit" class="secondary">Rulează verificările acum</button>
+    </form>
+    {% endif %}
+  </div>
+  {% if alerte_deschise %}
+  <table>
+    <thead><tr><th>Nivel</th><th>Cod</th><th>Mesaj</th><th>Generată la</th>{% if user.rol == "administrator" %}<th></th>{% endif %}</tr></thead>
+    <tbody>
+      {% for a in alerte_deschise %}
+      <tr>
+        <td>
+          {% if a.nivel == "critic" %}<span class="badge badge-erori">critic</span>
+          {% elif a.nivel == "avertisment" %}<span class="badge badge-warn">avertisment</span>
+          {% else %}<span class="badge badge-neutru">info</span>{% endif %}
+        </td>
+        <td>{{ a.cod }}</td>
+        <td>{{ a.mesaj }}</td>
+        <td>{{ a.generat_la }}</td>
+        {% if user.rol == "administrator" %}
+        <td>
+          <form class="inline" method="post" action="/alerte/{{ a.id }}/rezolva">
+            <button type="submit" class="secondary">Rezolvă</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Nicio alertă deschisă.</p>
+  {% endif %}
 </div>
 
 <div class="panel">

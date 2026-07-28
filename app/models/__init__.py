@@ -11,6 +11,7 @@ from app.models.reconciliation import (
 )
 from app.models.numbering import NumberingRule
 from app.models.audit import AuditLog
+from app.models.monitoring import IntegrityAlert
 
 __all__ = [
     "User",
@@ -33,4 +34,5 @@ __all__ = [
     "ReconciliationRun",
     "NumberingRule",
     "AuditLog",
+    "IntegrityAlert",
 ]
