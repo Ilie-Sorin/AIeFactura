@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_db
 from app.models.auth import User
@@ -8,6 +8,7 @@ from app.models.document import Invoice
 from app.models.ingestion import ImportBatch
 from app.models.monitoring import IntegrityAlert
 from app.security import require_login
+from app.services.display import attach_party_names
 from app.templating import templates
 
 router = APIRouter()
@@ -18,11 +19,20 @@ def dashboard(
     request: Request, db: Session = Depends(get_db), user: User = Depends(require_login)
 ):
     documente_noi = db.scalars(
-        select(Invoice).order_by(Invoice.creat_la.desc()).limit(10)
+        select(Invoice)
+        .options(selectinload(Invoice.parts))
+        .order_by(Invoice.creat_la.desc())
+        .limit(10)
     ).all()
     documente_eroare = db.scalars(
-        select(Invoice).where(Invoice.stare == "eroare").order_by(Invoice.creat_la.desc()).limit(10)
+        select(Invoice)
+        .options(selectinload(Invoice.parts))
+        .where(Invoice.stare == "eroare")
+        .order_by(Invoice.creat_la.desc())
+        .limit(10)
     ).all()
+    attach_party_names(documente_noi)
+    attach_party_names(documente_eroare)
     loturi_recente = db.scalars(
         select(ImportBatch).order_by(ImportBatch.pornit_la.desc()).limit(10)
     ).all()

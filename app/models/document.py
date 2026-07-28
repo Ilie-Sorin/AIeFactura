@@ -127,6 +127,9 @@ class InvoiceLine(Base):
     nr_crt: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cod_articol_furnizor: Mapped[str | None] = mapped_column(String(100), nullable=True)
     cod_articol_client: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # cbc:Name (denumirea articolului) si cbc:Description (detalii text
+    # suplimentare) nu sunt interschimbabile -- pastrate separat.
+    denumire: Mapped[str | None] = mapped_column(Text, nullable=True)
     descriere: Mapped[str | None] = mapped_column(Text, nullable=True)
     cantitate: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     um: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -140,7 +143,11 @@ class InvoiceLine(Base):
     xpath: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     descriere_tsv: Mapped[str | None] = mapped_column(
-        TSVECTOR, Computed("to_tsvector('romanian', coalesce(descriere, ''))", persisted=True)
+        TSVECTOR,
+        Computed(
+            "to_tsvector('romanian', coalesce(denumire, '') || ' ' || coalesce(descriere, ''))",
+            persisted=True,
+        ),
     )
 
     invoice: Mapped["Invoice"] = relationship(back_populates="lines")

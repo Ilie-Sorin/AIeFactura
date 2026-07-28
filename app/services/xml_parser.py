@@ -61,6 +61,7 @@ class ParsedLine:
     nr_crt: int | None
     cod_articol_furnizor: str | None
     cod_articol_client: str | None
+    denumire: str | None
     descriere: str | None
     cantitate: Decimal | None
     um: str | None
@@ -256,7 +257,11 @@ def _parse_line(line_el: etree._Element, qty_tag: str) -> ParsedLine:
     amount_el = _el(line_el, "cbc:LineExtensionAmount")
     order_line_el = _el(line_el, "cac:OrderLineReference/cbc:LineID")
 
-    descriere_el = _first_el(item_el, "cbc:Description", "cbc:Name")
+    # cbc:Name e denumirea articolului (ce a cumpărat clientul); cbc:Description
+    # e text descriptiv suplimentar, nu întotdeauna prezent — nu sunt interșanjabile,
+    # deci se extrag separat (nu unul ca fallback pentru celălalt).
+    nume_el = _el(item_el, "cbc:Name")
+    descriere_el = _el(item_el, "cbc:Description")
     seller_code_el = _el(item_el, "cac:SellersItemIdentification/cbc:ID")
     buyer_code_el = _el(item_el, "cac:BuyersItemIdentification/cbc:ID")
     tax_cat_el = _el(item_el, "cac:ClassifiedTaxCategory")
@@ -273,11 +278,15 @@ def _parse_line(line_el: etree._Element, qty_tag: str) -> ParsedLine:
     nr_crt_text = _text(id_el)
     nr_crt = int(nr_crt_text) if nr_crt_text and nr_crt_text.isdigit() else None
 
+    denumire = _text(nume_el)
+    descriere = _text(descriere_el)
+
     return ParsedLine(
         nr_crt=nr_crt,
         cod_articol_furnizor=_text(seller_code_el),
         cod_articol_client=_text(buyer_code_el),
-        descriere=_text(descriere_el),
+        denumire=denumire or descriere,
+        descriere=descriere,
         cantitate=_decimal(qty_el),
         um=qty_el.get("unitCode") if qty_el is not None else None,
         pret_unitar=_decimal(price_el),

@@ -382,6 +382,7 @@ def ingest_file(
                 nr_crt=l.nr_crt,
                 cod_articol_furnizor=l.cod_articol_furnizor,
                 cod_articol_client=l.cod_articol_client,
+                denumire=l.denumire,
                 descriere=l.descriere,
                 cantitate=l.cantitate,
                 um=l.um,

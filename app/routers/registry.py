@@ -4,13 +4,14 @@ from decimal import Decimal, InvalidOperation
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
 from sqlalchemy import Select, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_db
 from app.models.auth import User
 from app.models.document import Invoice, InvoiceLine, InvoiceParty
 from app.security import require_login
 from app.services.audit import write_audit
+from app.services.display import attach_party_names
 from app.services.export import build_bulk_export_zip, export_registry_to_excel
 from app.templating import templates
 
@@ -47,11 +48,13 @@ def _build_query(
     stare: str | None,
     directie: str | None,
 ) -> Select:
-    query = select(Invoice).order_by(Invoice.creat_la.desc())
+    query = select(Invoice).options(selectinload(Invoice.parts)).order_by(Invoice.creat_la.desc())
     q = (q or "").strip()
     if q:
         like = f"%{q}%"
-        linii_potrivite = select(InvoiceLine.invoice_id).where(InvoiceLine.descriere.ilike(like))
+        linii_potrivite = select(InvoiceLine.invoice_id).where(
+            or_(InvoiceLine.denumire.ilike(like), InvoiceLine.descriere.ilike(like))
+        )
         parti_potrivite = select(InvoiceParty.invoice_id).where(InvoiceParty.denumire.ilike(like))
         query = query.where(
             or_(
@@ -107,6 +110,7 @@ def registry(
 ):
     query = _build_query(q, data_de, data_pana, suma_de, suma_pana, cif, stare, directie)
     documente = db.scalars(query.limit(200)).all()
+    attach_party_names(documente)
     filtre = {
         "q": q or "",
         "data_de": data_de or "",

@@ -133,16 +133,21 @@
 <div class="panel">
   <table>
     <thead>
-      <tr><th>#</th><th>Cod</th><th>Descriere</th><th>Cant.</th><th>UM</th><th>Preț unitar</th><th>Valoare</th><th>Cotă TVA</th></tr>
+      <tr><th>#</th><th>Cod</th><th>Denumire</th><th>Cant.</th><th>UM</th><th>Preț unitar</th><th>Valoare</th><th>Cotă TVA</th></tr>
     </thead>
     <tbody>
       {% for l in invoice.lines %}
       <tr>
         <td>{{ l.nr_crt }}</td>
         <td>{{ l.cod_articol_furnizor or "—" }}</td>
-        <td>{{ l.descriere }}</td>
+        <td>
+          {{ l.denumire or "—" }}
+          {% if l.descriere and l.descriere != l.denumire %}
+          <br><span style="color:var(--muted); font-size:11px">{{ l.descriere }}</span>
+          {% endif %}
+        </td>
         <td>{{ l.cantitate }}</td>
-        <td>{{ l.um or "—" }}</td>
+        <td title="{{ l.um or '' }}">{{ l.um | um or "—" }}</td>
         <td>{{ "%.2f"|format(l.pret_unitar) if l.pret_unitar is not none else "—" }}</td>
         <td>{{ "%.2f"|format(l.valoare_fara_tva) if l.valoare_fara_tva is not none else "—" }}</td>
         <td>{{ l.cota_tva }}%</td>

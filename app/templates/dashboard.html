@@ -57,7 +57,7 @@
       {% for d in documente_noi %}
       <tr>
         <td><a href="/documente/{{ d.id }}">{{ d.numar_brut }}</a></td>
-        <td>{{ d.cif_emitent }}</td>
+        <td title="CIF {{ d.cif_emitent }}">{{ d.nume_furnizor or d.cif_emitent }}</td>
         <td>{{ d.data_emitere }}</td>
         <td>{{ "%.2f"|format(d.total_document) }} {{ d.moneda }}</td>
         <td>
@@ -82,7 +82,7 @@
       {% for d in documente_eroare %}
       <tr>
         <td><a href="/documente/{{ d.id }}">{{ d.numar_brut }}</a></td>
-        <td>{{ d.cif_emitent }}</td>
+        <td title="CIF {{ d.cif_emitent }}">{{ d.nume_furnizor or d.cif_emitent }}</td>
         <td>{{ d.eroare_mesaj }}</td>
       </tr>
       {% endfor %}

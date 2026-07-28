@@ -106,6 +106,54 @@ def test_classify_xml_bytes():
     assert classify_xml_bytes(b"<not-xml-at-all") == "atasament"
 
 
+def _minimal_invoice_xml(item_xml: str) -> bytes:
+    return f"""<?xml version="1.0"?>
+    <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+             xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+             xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+      <cbc:ID>1</cbc:ID>
+      <cbc:IssueDate>2026-01-01</cbc:IssueDate>
+      <cac:TaxTotal><cbc:TaxAmount>19.00</cbc:TaxAmount></cac:TaxTotal>
+      <cac:LegalMonetaryTotal>
+        <cbc:TaxExclusiveAmount>100.00</cbc:TaxExclusiveAmount>
+        <cbc:TaxInclusiveAmount>119.00</cbc:TaxInclusiveAmount>
+      </cac:LegalMonetaryTotal>
+      <cac:InvoiceLine>
+        <cbc:ID>1</cbc:ID>
+        <cbc:InvoicedQuantity>1</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount>100.00</cbc:LineExtensionAmount>
+        <cac:Item>{item_xml}</cac:Item>
+      </cac:InvoiceLine>
+    </Invoice>""".encode()
+
+
+def test_line_name_and_description_are_extracted_separately():
+    xml = _minimal_invoice_xml(
+        "<cbc:Description>Livrare in 3 zile lucratoare</cbc:Description>"
+        "<cbc:Name>Laptop ProBook 450</cbc:Name>"
+    )
+    parsed = parse_invoice_xml(xml)
+    linie = parsed.lines[0]
+    assert linie.denumire == "Laptop ProBook 450"
+    assert linie.descriere == "Livrare in 3 zile lucratoare"
+
+
+def test_line_falls_back_to_description_when_name_missing():
+    xml = _minimal_invoice_xml("<cbc:Description>Doar descriere, fara denumire</cbc:Description>")
+    parsed = parse_invoice_xml(xml)
+    linie = parsed.lines[0]
+    assert linie.denumire == "Doar descriere, fara denumire"
+    assert linie.descriere == "Doar descriere, fara denumire"
+
+
+def test_line_with_only_name_has_no_description():
+    xml = _minimal_invoice_xml("<cbc:Name>Doar denumire</cbc:Name>")
+    parsed = parse_invoice_xml(xml)
+    linie = parsed.lines[0]
+    assert linie.denumire == "Doar denumire"
+    assert linie.descriere is None
+
+
 def test_missing_mandatory_field_raises():
     xml = b"""<?xml version="1.0"?>
     <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"

@@ -10,6 +10,7 @@ def _line(valoare: Decimal) -> ParsedLine:
         nr_crt=1,
         cod_articol_furnizor=None,
         cod_articol_client=None,
+        denumire="x",
         descriere="x",
         cantitate=Decimal("1"),
         um="H87",
