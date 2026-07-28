@@ -3,11 +3,11 @@
 Registru local de documente RO e-Factura și motor de reconciliere — vezi
 [`Specificatie_AIeFactura.md`](Specificatie_AIeFactura.md) pentru specificația completă.
 
-Stare curentă: **Checkpoint C** (ingestie, normalizare, stocare, deduplicare,
-consolidare în grupuri, motor de reconciliere, UI de bază) — vezi „Ce urmează"
-mai jos pentru ce nu e încă implementat. Acesta e nucleul funcțional descris
-în cap. 1 (P1-P3) al specificației: captură + normalizare + consolidare +
-reconciliere.
+Stare curentă: **Checkpoint D** — Etapa 1 (MVP) din specificație e completă:
+ingestie, normalizare, stocare, deduplicare, consolidare în grupuri, motor de
+reconciliere, monitorizare/alertare, export, vizualizare, căutare avansată.
+Singura piesă rămasă neimplementată e sincronizarea ANAF (etapa 3) — vezi
+„Ce urmează" mai jos.
 
 ## Stack
 
@@ -61,21 +61,26 @@ app/
   config.py        # setări din .env (pydantic-settings)
   db.py            # engine/sesiune SQLAlchemy
   security.py      # autentificare (2 roluri), hashing parole
-  scheduler.py      # APScheduler — monitorizare periodică WATCH_DIRECTORIES
-  models/          # ORM — toate tabelele din cap. 11 al specificației
+  scheduler.py     # APScheduler — scanare periodică + verificări de integritate
+  models/          # ORM — toate tabelele din cap. 11 al specificației (+ integrity_alert)
   services/
     xml_parser.py      # parser UBL/RO-CIUS, XXE-safe
     normalize_number.py, normalize_cif.py
     dedup.py            # deduplicare ierarhică (3 niveluri)
-    integrity.py        # tripla verificare sumă linii/total/TVA, CIF
+    integrity.py        # tripla verificare sumă linii/total/TVA, CIF (la ingestie)
     ingest.py           # orchestrare lot de import
     consolidation.py    # relații explicite/deduse, grup + poziție netă (WITH RECURSIVE)
     external_import.py  # profil Excel/CSV -> external_record (tabel de tranzit)
     reconciliation.py   # blocking + scorare ponderată + praguri (cap. 7)
+    monitoring.py       # verificări periodice de completitudine/integritate (cap. 8)
+    alerting.py         # fișier de stare + email (alertare activă)
+    export.py           # structură de foldere ZIP + Excel (cap. 3, 9)
+    pdf.py               # vizualizare XML->HTML cu XSLT-ul oficial ANAF
     scanner.py          # scanare recursivă foldere
     audit.py            # jurnal de operații
-  routers/         # dashboard, registru, documente, grupuri, relații, reconciliere, importuri, admin, auth
+  routers/         # dashboard, registru, documente, grupuri, relații, reconciliere, monitorizare, importuri, admin, auth
   templates/       # Jinja2 + htmx (vendorizat local, fără CDN)
+  resources/       # stylesheet ANAF (fișier extern, de adăugat manual — vezi README propriu)
 migrations/        # Alembic — o migrare per schimbare de schemă, de la primul commit
 tests/
   unit/            # parser, normalizare, deduplicare, integritate
@@ -136,20 +141,94 @@ obligatoriu, impus și la nivel de serviciu). O rulare nouă recalculează
 scorul și diferențele pentru toată lumea, dar **copiază mai departe** orice
 decizie deja luată de un om (identificată prin `utilizator_id IS NOT NULL`).
 
+### Monitorizare și alertare (cap. 8)
+
+Vezi `app/services/monitoring.py` și `app/services/alerting.py`. Șapte
+verificări rulează periodic (interval configurabil, `INTEGRITY_CHECK_INTERVAL_MINUTES`,
+implicit 60 min) sau la cerere (buton „Rulează verificările acum" pe
+dashboard): discontinuități în seriile de facturi emise, scanare automată
+neexecutată de N zile, documente cu eroare de integritate, TVA neobișnuit
+sau incoerent cu categoria, CIF invalid (emitent și beneficiar), storno
+orfan, recalcularea SHA-256 pe un eșantion de surse binare (coruperea
+silențioasă). Rezultatele devin `integrity_alert` — niciodată șterse, doar
+marcate rezolvate (manual sau automat, când condiția dispare la o rulare
+ulterioară).
+
+Alertarea e **activă**, nu doar pasivă pe dashboard: la fiecare rulare se
+scrie un fișier de stare (`STATUS_FILE_PATH`, implicit
+`./data/status_monitorizare.json`) verificabil de un instrument extern (task
+programat Windows, Nagios/Zabbix etc.), iar dacă există alerte critice
+deschise și SMTP e configurat (`SMTP_*` în `.env`), se trimite un email —
+best-effort, o eroare de trimitere nu oprește verificările.
+
+Rămân documentat neimplementate (depind de sincronizarea ANAF, etapa 3):
+documente prezente în lista de mesaje ANAF dar lipsă local, proximitatea de
+expirarea ferestrei de 60 de zile.
+
+### Export și vizualizare (cap. 3, 9)
+
+`app/services/export.py` reconstituie structura de foldere din cap. 3 ca
+ZIP, la cerere — pentru un singur document sau pentru rezultatele curente
+ale registrului (inclusiv cu filtrele de căutare avansată aplicate); același
+ecran oferă și export Excel al listei. Structura de stocare (bază de date)
+rămâne separată de formatul de export/schimb (foldere).
+
+Vizualizarea documentului cu foaia de stil oficială ANAF (`app/services/pdf.py`)
+transformă XML-ul cu XSLT în HTML identic cu al vizualizatorului oficial;
+fișierul `.xsl` **nu e distribuit în acest depozit** (proprietate ANAF, se
+adaugă manual — vezi `app/resources/README.md`). PDF-ul propriu-zis se obține
+din browser (Print → Salvează ca PDF) — s-a preferat această variantă unei
+dependențe suplimentare de randare HTML→PDF (weasyprint/wkhtmltopdf), care ar
+fi ieșit din stack-ul impus prin specificație și ar fi adus fragilitate pe
+Windows.
+
 ## Ce urmează (nu e implementat încă)
 
-- **Completitudine/integritate programată** (cap. 8) și alertare (dincolo de triple-check-ul rulat la ingestie).
-- **Export** (structură de foldere ZIP, Excel) și **PDF** cu foaia de stil oficială ANAF.
-- **Sincronizare ANAF** (etapa 3 din specificație) — schema (`anaf_message`) e pregătită, fluxul OAuth nu e implementat.
-- Căutare avansată combinată (doar căutarea simplă e implementată).
+- **Sincronizare ANAF** (etapa 3 din specificație): autorizare OAuth, gestiunea
+  ciclului de viață al tokenurilor cu alertare la expirare, listare/descărcare
+  mesaje, confruntarea listei ANAF cu conținutul local, monitorizarea ferestrei
+  de 60 de zile. Schema (`anaf_message`) e pregătită, fluxul nu e implementat.
+- Etapa 2 din specificație (reconciliere față de gestiune/comenzi/contracte,
+  relații deduse cu prag de confirmare mai sofisticat, rapoarte consolidate).
 
-## Producție (schiță, nu automatizat de acest build)
+## Producție
 
-- **Serviciu Windows**: NSSM, pornind `uvicorn app.main:app` (fără `--reload`)
-  cu variabilele din `.env` încărcate în mediul serviciului. Nu s-a instalat
-  automat niciun serviciu — e o acțiune la nivel de sistem, de rulat explicit
-  de administrator pe mașina de producție.
-- **Backup**: `pg_basebackup` + arhivare WAL, cu restaurare de probă periodică
-  (cap. 12) — `pg_dump` devine incomod peste câțiva GB (cap. 2). De configurat
-  pe serverul de producție, nu documentat mai departe aici.
-- **Politica de retenție**: de declarat explicit înainte de punerea în producție.
+- **Serviciu Windows (NSSM)** — nu s-a instalat automat niciun serviciu (acțiune
+  de sistem, de rulat explicit de administrator pe mașina de producție):
+
+  ```powershell
+  # Din directorul unde a fost descarcat nssm.exe (https://nssm.cc)
+  nssm install AIeFactura "D:\AIeFactura\.venv\Scripts\python.exe" "-m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+  nssm set AIeFactura AppDirectory "D:\AIeFactura"
+  nssm set AIeFactura AppEnvironmentExtra "PYTHONUNBUFFERED=1"
+  # variabilele din .env se incarca de pydantic-settings la pornire -- .env
+  # trebuie sa existe in AppDirectory; NU se pun secrete in comanda NSSM insasi
+  nssm set AIeFactura AppStdout "D:\AIeFactura\logs\stdout.log"
+  nssm set AIeFactura AppStderr "D:\AIeFactura\logs\stderr.log"
+  nssm set AIeFactura Start SERVICE_AUTO_START
+  nssm start AIeFactura
+  ```
+
+  Migrările (`alembic upgrade head`) se rulează manual înainte de a porni
+  serviciul, la fiecare actualizare de versiune — nu automat la pornire (o
+  migrare eșuată nu trebuie să lase serviciul într-o buclă de restart).
+
+- **Backup fizic** (`pg_dump` devine incomod peste câțiva GB — cap. 2):
+
+  ```powershell
+  # Bază completă, o dată (sau la fiecare recreare de mediu)
+  pg_basebackup -h localhost -U aiefactura -D D:\Backup\base -Fp -Xs -P
+
+  # Arhivare WAL continuă -- in postgresql.conf:
+  #   archive_mode = on
+  #   archive_command = 'copy "%p" "D:\\Backup\\wal\\%f"'
+  ```
+
+  **Restaurarea de probă e obligatorie periodic** (cap. 12: „backup verificat
+  prin restaurare de probă, nu prin existența fișierului") — un backup
+  netestat nu e un backup verificat.
+
+- **Politica de retenție**: de declarat explicit înainte de punerea în
+  producție (cât timp se păstrează sursele binare, loturile anulate, jurnalul
+  de audit) — implementarea ei efectivă (retenție automată) nu face parte din
+  acest build.
